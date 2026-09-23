@@ -71,7 +71,7 @@ FONT_NAMES = [
 ]
 # Non-number text for negative samples: standard tempo and expression terms and neutral words,
 # deliberately not taken from the training scores.
-WORDS = []
+WORDS = ["dolce", "legato", "poco a poco", "rit.", "a tempo", "cresc.", "dim.", "espr.", "sim.", "subito", "Andante", "Allegro", "Moderato", "mf", "mp", "p", "f", "sfz", "ten.", "Ped.", "8va", "Solo", "unis.", "div.", "arco", "text", "word", "line", "one", "two"]
 
 
 @lru_cache(maxsize=1)
