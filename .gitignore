@@ -1,0 +1,22 @@
+# Data: never commit PDFs, measure lists or derived images
+dataset/*
+!dataset/splits/
+!dataset/meta.json
+
+# Training outputs
+runs/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Node
+node_modules/
+dist/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

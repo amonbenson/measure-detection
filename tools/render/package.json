@@ -1,0 +1,13 @@
+{
+  "name": "@mdet/render",
+  "private": true,
+  "type": "module",
+  "description": "Renders PDF pages to grayscale PNG with pdfjs-dist, the renderer used by the browser runtime",
+  "bin": {
+    "mdet-render": "render.mjs"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.9",
+    "pdfjs-dist": "^6.3.289"
+  }
+}

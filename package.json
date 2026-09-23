@@ -1,0 +1,6 @@
+{
+  "name": "measure-detection-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": ["tools/render", "packages/*"]
+}
