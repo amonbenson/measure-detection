@@ -150,7 +150,7 @@ def load_document(doc_id: str, num_pages: int | None = None) -> Document:
             )
         )
 
-    # 2. Duplicate boxes: the same printed measure annotated twice (a repeated passage under two names).
+    # 2. Duplicate boxes: the same printed measure annotated twice (a passage under two names).
     #    Boxes on one page with IoU >= 0.8 are duplicates. The later entry wins; it matches the print.
     kept: list[Measure] = []
     for m in measures:

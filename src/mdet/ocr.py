@@ -69,6 +69,8 @@ FONT_NAMES = [
     "cambria.ttc", "calibri.ttf", "calibrib.ttf", "verdana.ttf", "tahoma.ttf", "pala.ttf", "palab.ttf", "segoeui.ttf",
     "consola.ttf", "cour.ttf", "bookos.ttf", "gara.ttf", "GARA.TTF", "BOOKOS.TTF", "trebuc.ttf",
 ]
+# Non-number text for negative samples: standard tempo and expression terms and neutral words,
+# deliberately not taken from the training scores.
 WORDS = []
 
 

@@ -15,9 +15,10 @@ import numpy as np
 
 from .data import DATASET, SPLITS, all_document_ids, load_document, read_split
 
-# Show-level metadata, established during the audit (docs/CONVENTIONS.md).
+# Show-level metadata, established during the audit (docs/CONVENTIONS.md). Shows are named by
+# neutral keys; the real show names exist only in the gitignored dataset/documents/*/source.json.
 SHOW_META = {
-    "show A": {
+    "show-a": {
         "score_type": "piano-conductor",
         "publisher": "show-a",
         "source": "flatbed-scan",
@@ -28,7 +29,7 @@ SHOW_META = {
         "max_vocal_staves": 1,
         "multi_song": False,
     },
-    "show B": {
+    "show-b": {
         "score_type": "vocal",
         "publisher": "show-b",
         "source": "born-digital",
@@ -40,6 +41,15 @@ SHOW_META = {
         "multi_song": False,
     },
 }
+
+
+def show_keys() -> dict[str, str]:
+    """Real show name -> neutral key (show-a, show-b, ...), assigned in sorted order of the names of
+    shows that have labeled documents."""
+    names = sorted({json.loads((DATASET / "documents" / d / "source.json").read_text(encoding="utf-8"))["show"] for d in all_document_ids(labeled_only=True)})
+    return {n: f"show-{chr(ord('a') + i)}" for i, n in enumerate(names)}
+
+
 # Documents whose file source differs from the rest of their show.
 DOC_OVERRIDES = {
     "5bu88s20mzndpax": {"source": "flatbed-scan-strips", "scan_dpi": None, "notes": "A5 page assembled from image strips"},
@@ -62,10 +72,14 @@ def start_convention(doc_id: str) -> str | None:
 
 def build_meta() -> dict[str, dict]:
     meta = {}
+    keys = show_keys()
     for doc_id in all_document_ids(labeled_only=False):
         src = json.loads((DATASET / "documents" / doc_id / "source.json").read_text(encoding="utf-8"))
-        m = dict(SHOW_META[src["show"]])
-        m.update({"show": src["show"], "song_number": src["number"], "title": src["title"], "edition_group": src["show"]})
+        show = keys.get(src["show"])
+        if show is None:  # a show without labeled documents
+            continue
+        m = dict(SHOW_META[show])
+        m.update({"show": show, "edition_group": show})
         m.update(DOC_OVERRIDES.get(doc_id, {}))
         labeled = doc_id in set(all_document_ids(labeled_only=True))
         m["labeled"] = labeled

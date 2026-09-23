@@ -18,7 +18,7 @@ Model bundle: MeasureNet 0.27 M parameters (1.1 MB ONNX), LabelOCR 0.77 M parame
 
 | Stage | Result |
 |---|---|
-| System detection (all 463 pages, no learning) | precision 99.92 %, recall 99.77 %. 2 of the 3 missed rows are "title block" title blocks annotated as measures (label noise) |
+| System detection (all 463 pages, no learning) | precision 99.92 %, recall 99.77 %. 2 of the 3 missed rows are title blocks without a staff that are annotated as measures (label noise) |
 | Number bootstrapping (no external OCR) | 87.4 % of printed labels matched in round 0, 91.2 % after the self-training round; 199 of 200 randomly inspected crops correct (99.5 % precision) |
 | Annotation QA (snap offset of barline boundaries to the nearest line) | median 0.13 s, p95 0.42 s |
 
@@ -30,8 +30,8 @@ Configuration: MeasureNet with two start channels, tau_b = 0.4 (tuned on val), L
 |---|---|---|---|---|
 | System precision / recall | 100 / 100 % | 100 / 100 % | 100 / 100 % | |
 | Barline F1 at 1 s | 99.43 % | 96.29 % | 97.79 % | 99.5 % |
-| Barline F1 at 0.5 s | 93.71 % | 90.46 % | 92.71 % | |
-| Boundary error mean / p95 | 0.19 / 0.51 s | 0.20 / 0.53 s | | |
+| Barline F1 at 0.5 s | 93.71 % | 90.36 % | 92.62 % | |
+| Boundary error mean / p95 | 0.19 / 0.51 s | 0.20 / 0.54 s | | |
 | Measure F1 | 99.28 % | 94.03 % | 96.20 % | 99 % |
 | Page-exact rate | 93.22 % | 77.63 % | 77.63 % | 95 % |
 | Conditional label accuracy | 99.46 % | 98.08 % | 98.12 % | |
@@ -45,16 +45,16 @@ Test is below val. The difference is concentrated in two show B documents:
 
 | Test document | Start convention | Measures | Measure F1 | End-to-end label |
 |---|---|---|---|---|
-| show A 1, 4, 6b, 6e, 7b, 10a | system-edge | 419 | 96.2 to 100 % | 95.8 to 100 % |
-| show B 10 ((title)) | system-edge | 245 | 87.98 % | 87.76 % |
-| show B 12 ((title)) | after-header | 166 | 93.33 % | 85.54 % |
+| Show A: `8dq33liwx27xleb`, `f8h10derj70hzdw`, `av3hfu081tymefw`, `y06pppp8wchggg0`, `7f171y3j2gwox35`, `bx7ml3j5hjpjnqg` | system-edge | 419 | 96.2 to 100 % | 95.8 to 100 % |
+| Show B: `jtmrafex42858ea` | system-edge | 245 | 87.98 % | 87.76 % |
+| Show B: `nmdyxt0rjxjxdkp` | after-header | 166 | 93.33 % | 85.54 % |
 
 Stratified on test (full tables in `runs/eval/test/report.md`):
 
 | Stratum | Measure F1 | Page exact | End-to-end label |
 |---|---|---|---|
-| show A (piano-conductor, scans, numbers below) | 97.85 % | 91.67 % | 97.37 % |
-| show B (vocal, born-digital, numbers above) | 90.13 % | 53.57 % | 86.86 % |
+| Show A (piano-conductor, scans, numbers below) | 97.85 % | 91.67 % | 97.37 % |
+| Show B (vocal, born-digital, numbers above) | 90.13 % | 53.57 % | 86.86 % |
 | Challenge pages | 91.29 % | 65.79 % | 88.45 % |
 
 Box mAP by show: show A mAP50 1.00 (val and test), mAP50-95 0.99 (val) and 0.975 (test); show B mAP50 0.37 to 0.40. The low show B value is caused by the annotation convention (boxes often extend over the lyrics, predictions span the staff), not by detection errors.
@@ -90,8 +90,8 @@ No third publisher exists in the data, so `test_ood` is replaced by training on 
 
 | Trained on -> tested on | Barline F1 1 s | Measure F1 | Page exact | End-to-end label |
 |---|---|---|---|---|
-| show A -> show B (16 documents) | 67.09 % | 52.84 % | 7.09 % | 6.79 % |
-| show B -> show A (37 documents) | 95.33 % | 89.71 % | 61.61 % | 22.22 % |
+| Show A -> show B (16 documents) | 67.09 % | 52.84 % | 7.09 % | 6.79 % |
+| Show B -> show A (37 documents) | 95.33 % | 89.71 % | 61.61 % | 22.22 % |
 
 Generalization to a new engraving is poor, as the guideline's research summary anticipated. Boundaries transfer partly (better from the vocal to the piano-conductor score than the other way). Labels do not transfer, because the number placement model learned from one show only knows one side of the system (show A prints numbers below the system, show B above) and LabelOCR has seen one font. New engravings need labeled examples in training.
 
@@ -99,14 +99,14 @@ Generalization to a new engraving is poor, as the guideline's research summary a
 
 | Category | Count | Main cause |
 |---|---|---|
-| Spurious barline | 39 | show B 10: a thin barline after clef and key signature at the start of multi-measure rests, which the `system-edge` annotations do not treat as a boundary; every equal split after it shifts |
+| Spurious barline | 39 | Document `jtmrafex42858ea`: a thin barline after clef and key signature at the start of multi-measure rests, which the `system-edge` annotations do not treat as a boundary; every equal split after it shifts |
 | Missed barline | 27 | Virtual boundaries inside multi-measure rests whose range label was not split as annotated (uneven annotator splits) |
 | Label | 15 | Mostly shifted labels inside long multi-measure rests (matching artifacts of narrow sub-measures) |
 | Start edge | 13 | Start boundary in show B `system-edge` systems |
 
 A rule that drops a barline at the end of the header under the `system-edge` convention was tried after this analysis. It did not change the two training documents with the same layout and lowered val measure F1 from 99.28 % to 99.01 %, so it was not adopted. The test numbers above are from the pipeline as fixed before test was run.
 
-Val has 11 errors in 558 measures: 3 label errors (three label errors), 4 spurious and 1 missed barline, 3 start boundaries.
+Val has 11 errors in 558 measures: 3 label errors (one misread digit, one dropped lowercase suffix, one wrong reading kept by the decoder), 4 spurious and 1 missed barline, 3 start boundaries.
 
 ## 8. Review curve
 

@@ -13,7 +13,7 @@ m=json.load(open('dataset/meta.json'))
 print(' '.join(d for s in sys.argv[2:] for d in read_split(s) if m[d]['show']==sys.argv[1]))" "$@"
 }
 
-for fold in "cfa:show A" "ut:show B"; do
+for fold in "show-a:show-a" "show-b:show-b"; do
   name="${fold%%:*}"; show="${fold#*:}"
   out="runs/loso/$name"; mkdir -p "$out"
   train=$(docs "$show" train); val=$(docs "$show" val)

@@ -9,7 +9,7 @@ Each term has exactly one meaning in this repository.
 | Term | Meaning |
 |---|---|
 | document | One song: one PDF plus its measure list. Identified by the Pocketbase `songs` record id. |
-| show | The musical a document belongs to. All documents of a show share one engraving source. |
+| show | The musical a document belongs to. All documents of a show share one engraving source. Shows are named by neutral keys (show A = `show-a`, show B = `show-b`); real names exist only in the gitignored data. |
 | page | One displayed PDF page (after `/Rotate` and CropBox). |
 | staff | Five horizontal staff lines. |
 | system | A group of staves that is read simultaneously, connected by an opening line on the left. |
@@ -27,25 +27,25 @@ Each term has exactly one meaning in this repository.
 
 ## 2. Audit findings
 
-Source: 3 shows, 55 documents, 4,969 JSON entries, about 470 pages. "third show" has no documents.
+Source: 3 shows (one without documents), 55 documents, 4,969 JSON entries, about 470 pages. The third show has no documents.
 
 | Finding | Evidence | Consequence |
 |---|---|---|
 | Coordinates are fractions of the displayed page, origin top-left, y down | Overlays on sample pages of all sources | Loader applies `/Rotate` (show A pages are stored landscape with `/Rotate 270`) |
-| Two engraving sources, three file sources | show A: 600 dpi grayscale scans, A4. show A song 15: A5, built from image strips. show B: born-digital vector, A5, no text layer | No third publisher exists, so `test_ood` is replaced by a leave-one-show-out experiment |
-| Score types | show A: piano-conductor with 1-3 extra staves. show B: mostly one vocal staff, some two-staff vocal systems | PC and V are covered. PV is not present |
-| Numbering style | show A: every measure, below the system. show B: every measure, above the staff, plus boxed rehearsal numbers | Both margins are searched |
+| Two engraving sources, three file sources | Show A: 600 dpi grayscale scans, A4. one show A document: A5, built from image strips. Show B: born-digital vector, A5, no text layer | No third publisher exists, so `test_ood` is replaced by a leave-one-show-out experiment |
+| Score types | Show A: piano-conductor with 1-3 extra staves. Show B: mostly one vocal staff, some two-staff vocal systems | PC and V are covered. PV is not present |
+| Numbering style | Show A: every measure, below the system. Show B: every measure, above the staff, plus boxed rehearsal numbers | Both margins are searched |
 | The JSON is a playback sequence, not reading order | Jumps back to earlier pages; inserted measures listed out of order | Reading order is derived from geometry (page, row y, x), never from array order |
 | Pass suffix `-k` | 172 values. Pass 1 has a box. Passes 2+ have no box | Label = value without `-k`. Entries without box are dropped |
 | Entries without box | 143, including one trailing "end" entry per document | Dropped |
-| Duplicate boxes | One document (show B 4) labels the same 4 measures as `9A..9D` and `10..13` | Keep one box. Label is the later entry (matches the print); recorded in `docs/CONVENTIONS.md` |
-| Label grammar | `N`, `NL` (`23A`, `8a`), `L` (`A`..`E`), each with optional pass | Grammar: optional integer + optional letter suffix. Charset: digits, letters, `-` for range labels |
-| Multi-measure rests | show B: one printed rest with range label `12-15` is annotated as 22 equal-width boxes | Detected interval is split into N equal measures after labelling. Virtual boundaries are ignored in barline training |
-| Vertical box extent is inconsistent | show A: top to bottom staff line. show B: sometimes includes lyrics, sometimes the staff only | Predictions span top to bottom staff line. System matching uses intersection over the smaller height |
-| Start boundary convention differs by show | show A: system opening line, or the start-repeat barline. show B: after clef and key signature | Learned by the boundary model; not hard-coded |
+| Duplicate boxes | One document labels the same 4 measures under two names (`9A..9D` and `10..13` style) | Keep one box. Label is the later entry (matches the print); recorded in `docs/CONVENTIONS.md` |
+| Label grammar | `N`, `NL` (`23A`, `23a`), `L` (`A`, `B`, ...), each with optional pass | Grammar: optional integer + optional letter suffix. Charset: digits, letters, `-` for range labels |
+| Multi-measure rests | Show B: one printed rest with range label such as `12-15` is annotated as one equal-width box per measure | Detected interval is split into N equal measures after labelling. Virtual boundaries are ignored in barline training |
+| Vertical box extent is inconsistent | Show A: top to bottom staff line. Show B: sometimes includes lyrics, sometimes the staff only | Predictions span top to bottom staff line. System matching uses intersection over the smaller height |
+| Start boundary convention differs by show | Show A: system opening line, or the start-repeat barline. Show B: after clef and key signature | Learned by the boundary model; not hard-coded |
 | Tiling | 2 gaps above 1e-4 in 1,315 rows | Rows tile; gaps are logged |
 | Unlabeled pages | 7 pages, all "turn page" arrow pages | True negatives |
-| Unlabeled documents | show B 11 and 14 have zero entries | Excluded from all splits |
+| Unlabeled documents | Two show B documents have zero entries | Excluded from all splits |
 
 ## 3. Architecture
 
