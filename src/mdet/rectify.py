@@ -68,16 +68,20 @@ def estimate_shear(image: np.ndarray, strip: Strip, max_shear: float = 0.035, st
     vert = cv2.morphologyEx(bw, cv2.MORPH_OPEN, np.ones((int(2 * S), 1), np.uint8)).astype(np.float32)
     h, w = vert.shape
     vc = strip.v_centre - a
-    best, best_score = 0.0, -1.0
-    for k in np.arange(-max_shear, max_shear + 1e-9, step):
+    n = int(round(2 * max_shear / step)) + 1
+    ks, scores = [], []
+    for i in range(n):
+        k = -max_shear + i * step
         # Sample column u + k * (v - vc) for every row: a line with that tilt becomes vertical.
-        m = np.array([[1.0, k, -k * vc], [0.0, 1.0, 0.0]], np.float32)
+        m = np.array([[1.0, k, -k * vc], [0.0, 1.0, 0.0]], np.float64)
         sheared = cv2.warpAffine(vert, m, (w, h), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderValue=0)
-        p = sheared.sum(axis=0)
-        score = float((p * p).sum())
-        if score > best_score:
-            best, best_score = float(k), score
-    return best
+        p = sheared.astype(np.float64).sum(axis=0)
+        ks.append(k)
+        scores.append(float((p * p).sum()))
+    # Near-ties (within 0.5 %, below the measurement noise of one shear step) go to the smallest shear,
+    # so that last-digit differences between implementations cannot change the result.
+    best = max(scores)
+    return min((k for k, sc in zip(ks, scores) if sc >= best * (1 - 5e-3)), key=abs)
 
 
 def make_strip(system: System, page_width: int, image: np.ndarray | None = None) -> Strip:

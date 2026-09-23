@@ -59,10 +59,10 @@ export function estimateShear(image: Gray, s: Strip, maxShear = 0.035, step = 0.
   const vert = open(binarize(band), 1, Math.trunc(2 * S));
   const f: FloatImage = { width: vert.width, height: vert.height, data: Float32Array.from(vert.data) };
   const vc = vCentre(s) - a;
-  let best = 0, bestScore = -1;
-  for (let i = 0; ; i++) {
+  const n = Math.round((2 * maxShear) / step) + 1;
+  const ks: number[] = [], scores: number[] = [];
+  for (let i = 0; i < n; i++) {
     const k = -maxShear + i * step;
-    if (k > maxShear + 1e-9) break;
     const sh = warpAffineF(f, [1, k, -k * vc, 0, 1, 0], f.width, f.height, true);
     let score = 0;
     for (let x = 0; x < sh.width; x++) {
@@ -70,12 +70,17 @@ export function estimateShear(image: Gray, s: Strip, maxShear = 0.035, step = 0.
       for (let y = 0; y < sh.height; y++) p += sh.data[y * sh.width + x];
       score += p * p;
     }
-    if (score > bestScore) {
-      best = k;
-      bestScore = score;
-    }
+    ks.push(k);
+    scores.push(score);
   }
-  return best;
+  // Near-ties (within 0.5 %, below the measurement noise of one shear step) go to the smallest shear,
+  // so that last-digit differences between implementations cannot change the result.
+  const best = Math.max(...scores);
+  let pick = Infinity;
+  ks.forEach((k, i) => {
+    if (scores[i] >= best * (1 - 5e-3) && Math.abs(k) < Math.abs(pick)) pick = k;
+  });
+  return pick;
 }
 
 export function makeStrip(system: System, pageWidth: number, image?: Gray): Strip {
