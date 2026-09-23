@@ -80,11 +80,12 @@ uv run python -m mdet.parity                    # golden outputs for the browser
 npm test -w measure-detection                   # build, parity test (Node, WASM)
 ```
 
-Browser demo (WebGPU or WASM, draws the detected measures, reports timings):
+Example (upload a PDF in the browser, see progress, measures drawn over the pages; WebGPU with WASM fallback):
 
 ```
-uv run python packages/measure-detection/demo/serve.py
-# open http://localhost:8766/packages/measure-detection/demo/index.html?pdf=/dataset/documents/<doc_id>/score.pdf
+npm install
+npm run example -w measure-detection
+# open http://localhost:8080
 ```
 
 Box-detector baseline (RF-DETR-S, separate environment in `baselines/rfdetr/`):

@@ -6,13 +6,20 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
     "./models/*": "./models/*"
   },
-  "files": ["dist", "models"],
+  "files": [
+    "dist",
+    "models"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node test/unit.mjs && node test/parity.mjs"
+    "test": "npm run build && node test/unit.mjs && node test/parity.mjs",
+    "example": "tsc -p tsconfig.json && node example/server.mjs"
   },
   "dependencies": {
     "onnxruntime-web": "^1.20.0",

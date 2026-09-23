@@ -51,9 +51,12 @@ function median(v: number[]): number {
 }
 
 /** Pass 1 for every page: staff space at moderate resolution. */
-export async function pass1(pdf: PDFDocumentProxy, canvas: CanvasFactory): Promise<{ s1: number[]; sDoc: number }> {
+export async function pass1(pdf: PDFDocumentProxy, canvas: CanvasFactory, onPage?: (done: number) => void): Promise<{ s1: number[]; sDoc: number }> {
   const est = [];
-  for (let p = 0; p < pdf.numPages; p++) est.push(estimateStaffSpace(await renderGray(pdf, p, PASS1_DPI / 72, canvas)));
+  for (let p = 0; p < pdf.numPages; p++) {
+    est.push(estimateStaffSpace(await renderGray(pdf, p, PASS1_DPI / 72, canvas)));
+    onPage?.(p + 1);
+  }
   const strong = est.filter((e) => e.modeStrength >= MIN_MODE_STRENGTH).map((e) => e.s);
   const sDoc = strong.length ? median(strong) : 8;
   return { s1: est.map((e) => (e.modeStrength >= MIN_MODE_STRENGTH ? e.s : sDoc)), sDoc };

@@ -2,10 +2,12 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "demo",
-      "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "python", "packages/measure-detection/demo/serve.py", "8766"],
-      "port": 8766
+      "name": "example",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "packages/measure-detection/example/server.mjs"
+      ],
+      "port": 8080
     }
   ]
 }

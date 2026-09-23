@@ -130,7 +130,7 @@ Confidence flags label errors well but not boundary errors inside multi-measure 
 | Classical stages (V8, Node, one A4 scan page) | about 1.5 s (skew 0.4 s, shear 0.5 s, systems, rectification, text candidates) |
 | PDF rendering, 600 dpi JPEG scan page | about 9.7 s per pass in Node (pdf.js decodes JPEG in JavaScript); browsers decode natively, not measured |
 
-Latency per page is therefore about 1.6 s plus rendering with WebGPU and about 4 to 5 s plus rendering with WASM. Full in-browser page latency could not be measured in this session because the browser pane was hidden (hidden tabs are throttled). The demo page (`packages/measure-detection/demo/`) measures it when opened in a visible browser tab.
+Latency per page is therefore about 1.6 s plus rendering with WebGPU and about 4 to 5 s plus rendering with WASM. Full in-browser page latency could not be measured in this session because the browser pane was hidden (hidden tabs are throttled). The upload example (`npm run example -w measure-detection`, `packages/measure-detection/example/`) reports the time per document when used in a visible browser tab; a one-page vocal score took 2.7 s on WebGPU in a smoke test.
 
 ## 10. Against the acceptance targets (guideline 7.6)
 

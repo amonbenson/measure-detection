@@ -8,6 +8,7 @@ import { browserCanvas, CanvasFactory, pass1, preparePage } from "./render.js";
 
 export type { DecoderParams, Measure, ModelSources, StartConvention };
 export type { CanvasFactory } from "./render.js";
+export type ProgressStage = "scan" | "detect" | "label";
 
 /** One detected measure, in the training JSON schema extended with quad and confidences. */
 export interface MeasureResult {
@@ -32,7 +33,9 @@ export interface DetectOptions extends PipelineOptions {
   startConvention?: StartConvention;
   /** Canvas factory for pdf.js rendering. Default: OffscreenCanvas. */
   canvas?: CanvasFactory;
-  onProgress?: (done: number, total: number) => void;
+  /** Progress per stage: "scan" (staff space of every page), "detect" (measures per page),
+   *  "label" (reading and decoding measure numbers for the whole document). */
+  onProgress?: (done: number, total: number, stage: ProgressStage) => void;
 }
 
 export class MeasureDetector {
@@ -49,14 +52,16 @@ export class MeasureDetector {
 
   async detect(pdf: PDFDocumentProxy, opts: DetectOptions = {}): Promise<MeasureResult[]> {
     const canvas = opts.canvas ?? browserCanvas;
-    const { s1, sDoc } = await pass1(pdf, canvas);
+    const { s1, sDoc } = await pass1(pdf, canvas, (done) => opts.onProgress?.(done, pdf.numPages, "scan"));
     const pages = [];
     for (let p = 0; p < pdf.numPages; p++) {
       const page = await preparePage(pdf, p, s1[p], sDoc, canvas);
       pages.push({ page, systems: await detectPage(this.models, page, opts) });
-      opts.onProgress?.(p + 1, pdf.numPages);
+      opts.onProgress?.(p + 1, pdf.numPages, "detect");
     }
+    opts.onProgress?.(0, 1, "label");
     const measures = await labelDocument(this.models, this.decoder, pages);
+    opts.onProgress?.(1, 1, "label");
     return measures.map(toResult);
   }
 }
