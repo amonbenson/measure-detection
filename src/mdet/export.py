@@ -66,8 +66,45 @@ def main() -> None:
         load_checkpoint(ocr, args.labelocr)
     err = export_model(ocr, torch.rand(4, 1, 32, 128), out / "labelocr.onnx", {"input": {0: "batch"}, "output": {0: "batch"}})
     print(f"labelocr.onnx: max abs diff {err:.2e}")
-    manifest = {"measurenet": mn_meta, "labelocr": ocr_meta}
-    (out / "manifest.json").write_text(json.dumps(manifest, indent=1, default=str), encoding="utf-8", newline="\n")
+    # Decoder parameters (Stage 5) at full precision: the browser runtime must reproduce Python exactly.
+    from .labelling import load_params
+
+    params = load_params()
+    (out / "decoder.json").write_text(json.dumps({k: params[k] for k in ("transitions", "first_labels", "offsets")}), encoding="utf-8", newline="\n")
+    (out / "manifest.json").write_text(json.dumps(manifest(mn_meta, ocr_meta), indent=1, default=str), encoding="utf-8", newline="\n")
+
+
+def manifest(mn_meta: dict, ocr_meta: dict) -> dict:
+    """Model bundle manifest (guideline 8.4): dataset version, split hashes, commit, export settings, metrics."""
+    import hashlib
+    import subprocess
+
+    from .data import DATASET, ROOT, SPLITS
+
+    def sha(path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    dirty = bool(subprocess.run(["git", "status", "--porcelain"], cwd=ROOT, capture_output=True, text=True).stdout.strip())
+    metrics = {}
+    for name in ("val", "test"):
+        f = RUNS / "eval" / name / "summary.json"
+        if f.exists():
+            metrics[name] = json.loads(f.read_text(encoding="utf-8"))
+    return {
+        "dataset": {"meta_sha256": sha(DATASET / "meta.json"), "splits_sha256": {p.stem: sha(p) for p in sorted(SPLITS.glob("*.txt"))}},
+        "training_commit": commit + ("-dirty" if dirty else ""),
+        "export": {
+            "opset": 17,
+            "dtype": "float32",
+            "measurenet_input": "(1, 2, H, W); H in 192/320/448/576/704/832 or a multiple of 128; W a multiple of 128, at least 1216",
+            "labelocr_input": "(N, 1, 32, 128)",
+        },
+        "measurenet": {k: v for k, v in mn_meta.items() if k in ("epoch", "val")},
+        "labelocr": {k: v for k, v in ocr_meta.items() if k in ("epoch", "val", "charset")},
+        "tau_b": 0.4,
+        "metrics": metrics,
+    }
 
 
 if __name__ == "__main__":

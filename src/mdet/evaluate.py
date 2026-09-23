@@ -59,14 +59,54 @@ def match_systems(pred: list[PredSystem], gt: list[Row], min_score: float = 0.5)
     return [(i, j) for i, j in zip(ii, jj) if -cost[i, j] >= min_score]
 
 
-def match_boundaries(pred: list[float], gt: list[float], tol: float) -> list[tuple[int, int, float]]:
-    """One-to-one matching of boundary x positions within tol. Returns (pred idx, gt idx, |dx|)."""
-    if not pred or not gt:
+def match_boundaries(pred: list[float], gt: list[float], tol) -> list[tuple[int, int, float]]:
+    """Order-preserving one-to-one matching of boundary x positions. Returns (pred idx, gt idx, |dx|).
+
+    Boundaries are ordered along x, so matches must not cross. Dynamic programming maximizes the
+    number of matches within tolerance, then minimizes the total distance. tol is a scalar or one
+    tolerance per ground-truth boundary.
+    """
+    n, m = len(pred), len(gt)
+    if not n or not m:
         return []
-    d = np.abs(np.subtract.outer(np.asarray(pred), np.asarray(gt)))
-    cost = np.where(d <= tol, d, 1e6)
-    ii, jj = linear_sum_assignment(cost)
-    return [(i, j, float(d[i, j])) for i, j in zip(ii, jj) if d[i, j] <= tol]
+    tols = np.broadcast_to(np.asarray(tol, np.float64), (m,))
+    d = np.abs(np.subtract.outer(np.asarray(pred, np.float64), np.asarray(gt, np.float64)))
+    # score = (matches, -distance), compared lexicographically via a large weight on matches.
+    big = 1e6
+    f = np.zeros((n + 1, m + 1))
+    move = np.zeros((n + 1, m + 1), np.int8)  # 0: skip pred, 1: skip gt, 2: match
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            best, mv = f[i - 1, j], 0
+            if f[i, j - 1] > best:
+                best, mv = f[i, j - 1], 1
+            if d[i - 1, j - 1] <= tols[j - 1]:
+                v = f[i - 1, j - 1] + big - d[i - 1, j - 1]
+                if v > best:
+                    best, mv = v, 2
+            f[i, j], move[i, j] = best, mv
+    out = []
+    i, j = n, m
+    while i > 0 and j > 0:
+        if move[i, j] == 2:
+            out.append((i - 1, j - 1, float(d[i - 1, j - 1])))
+            i, j = i - 1, j - 1
+        elif move[i, j] == 1:
+            j -= 1
+        else:
+            i -= 1
+    return out[::-1]
+
+
+def boundary_tolerances(gb: list[float], virtual: list[bool] | None, tol: float) -> np.ndarray:
+    """Tolerance per ground-truth boundary. A virtual boundary (inside a multi-measure rest) has no
+    visible position: any split within half the adjacent sub-measure width is accepted."""
+    t = np.full(len(gb), tol)
+    if virtual:
+        for k, v in enumerate(virtual):
+            if v and 0 < k < len(gb) - 1:
+                t[k] = max(tol, 0.5 * min(gb[k] - gb[k - 1], gb[k + 1] - gb[k]))
+    return t
 
 
 @dataclass
@@ -92,7 +132,8 @@ class PageResult:
         return self.n_correct_measures == self.n_gt_measures == self.n_pred_measures and self.n_pred_systems == self.n_gt_systems
 
 
-def evaluate_page(doc_id: str, page: int, s: float, pred: list[PredSystem], gt: list[Row], tols=(1.0, 0.5)) -> PageResult:
+def evaluate_page(doc_id: str, page: int, s: float, pred: list[PredSystem], gt: list[Row], tols=(1.0, 0.5), virtual: dict[int, list[bool]] | None = None) -> PageResult:
+    """virtual: per ground-truth row index, flags of virtual boundaries (rest-tolerant variant); None = strict."""
     res = PageResult(doc_id, page, s, n_pred_systems=len(pred), n_gt_systems=len(gt))
     res.n_gt_measures = sum(len(r.measures) for r in gt)
     res.n_pred_measures = sum(len(p.measures) for p in pred)
@@ -116,7 +157,7 @@ def evaluate_page(doc_id: str, page: int, s: float, pred: list[PredSystem], gt: 
         p, r = pred[i], gt[j]
         pb, gb = p.boundaries(), r.boundaries()
         for t in tols:
-            mt = match_boundaries(pb, gb, t * s)
+            mt = match_boundaries(pb, gb, boundary_tolerances(gb, (virtual or {}).get(j), t * s))
             res.boundary[t][0] += len(mt)
             if t == 1.0:
                 res.boundary_errors += [d / s for _, _, d in mt]

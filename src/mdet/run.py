@@ -11,6 +11,8 @@ from __future__ import annotations
 import argparse
 import json
 import pickle
+
+import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
@@ -57,8 +59,30 @@ def run_document(args: tuple) -> list[tuple[PageResult, list[PredSystem]]]:
 
         label_document(doc_id, per_page, labels)
     for p, pred, systems, geo in per_page:
-        res = evaluate_page(doc_id, p, geo.s_original, pred, doc.rows_on_page(p))
-        out.append((res, pred))
+        rows = doc.rows_on_page(p)
+        strict = evaluate_page(doc_id, p, geo.s_original, pred, rows)
+        tolerant = evaluate_page(doc_id, p, geo.s_original, pred, rows, virtual=virtual_flags(geo, systems, rows))
+        out.append((strict, tolerant, pred))
+    return out
+
+
+def virtual_flags(geo, systems, rows) -> dict[int, list[bool]]:
+    """Per ground-truth row: which boundaries have no visible line (inside multi-measure rests).
+
+    Measured on the detected system that matches the row, with the same rule as the training targets.
+    """
+    from .evaluate import match_systems
+    from .pipeline import page_x_to_strip_u
+    from .staves import S
+    from .targets import LINE_MIN_RESPONSE, column_response, snap
+
+    out = {}
+    gray = geo.norm8()
+    for i, j in match_systems([ps.pred for ps in systems], rows):
+        ps = systems[i]
+        resp = column_response(rectify(gray, ps.strip), ps.strip)
+        us = page_x_to_strip_u(geo, ps.strip, np.asarray(rows[j].boundaries()), ps.pred)
+        out[j] = [False] + [snap(resp, float(u), S)[1] < LINE_MIN_RESPONSE for u in us[1:]]
     return out
 
 
@@ -66,6 +90,7 @@ def evaluate_split(split: str, kind: str, ckpt: str | None = None, tau: float | 
     docs = docs or read_split(split)
     jobs = [(d, kind, ckpt, tau, labels, convention) for d in docs]
     results: list[PageResult] = []
+    tolerant: list[PageResult] = []
     preds = {}
     if workers > 1:
         with ProcessPoolExecutor(workers) as ex:
@@ -73,10 +98,11 @@ def evaluate_split(split: str, kind: str, ckpt: str | None = None, tau: float | 
     else:
         outs = [run_document(j) for j in jobs]
     for d, out in zip(docs, outs):
-        for res, pred in out:
+        for res, tol, pred in out:
             results.append(res)
+            tolerant.append(tol)
             preds[(d, res.page)] = pred
-    return summarize(results), results, preds
+    return summarize(results), results, preds, tolerant
 
 
 def main() -> None:
@@ -91,14 +117,17 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
     name = args.name or f"{args.detector}_{args.split}"
-    summary, results, preds = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, convention=args.convention)
+    summary, results, preds, tolerant = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, convention=args.convention)
+    summary_tol = summarize(tolerant)
     out = RUNS / "eval" / name
     out.mkdir(parents=True, exist_ok=True)
-    (out / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8", newline="\n")
+    (out / "summary.json").write_text(json.dumps({"strict": summary, "rest_tolerant": summary_tol}, indent=1), encoding="utf-8", newline="\n")
     with open(out / "pages.pkl", "wb") as f:
-        pickle.dump({"results": results, "preds": preds, "args": vars(args)}, f)
+        pickle.dump({"results": results, "tolerant": tolerant, "preds": preds, "args": vars(args)}, f)
+    print(f"{'metric':32s} {'strict':>8s} {'rest-tolerant':>14s}")
     for k, v in summary.items():
-        print(f"{k:32s} {v:.4f}" if isinstance(v, float) else f"{k:32s} {v}")
+        w = summary_tol[k]
+        print(f"{k:32s} {v:8.4f} {w:14.4f}" if isinstance(v, float) else f"{k:32s} {v:>8} {w:>14}")
 
 
 if __name__ == "__main__":

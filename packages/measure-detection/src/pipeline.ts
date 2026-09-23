@@ -77,8 +77,7 @@ export async function detectPage(models: Models, p: PreparedPage, opts: Pipeline
     const strip = makeStrip(sy, p.norm8.width, p.norm8);
     const img = rectify(p.norm8, strip);
     const sig = await boundarySignals(models, img, strip);
-    const start = conv === "system-edge" ? sig.startEdge : sig.startHeader;
-    const bnd = decode(start, sig.barline, sig.offset, 2, tauB);
+    const bnd = decode(conv === "system-edge" ? sig.startEdge : sig.startHeader, sig.barline, sig.offset, 2, tauB);
     const us = bnd.map((b) => b[0]);
     out.push({ system: sy, strip, us, measures: measuresFromBoundaries(p, strip, us, bnd.map((b) => b[1])) });
   }
