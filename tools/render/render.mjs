@@ -9,9 +9,12 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createCanvas } from "@napi-rs/canvas";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 
+// pdf.js decodes JBIG2 and JPEG 2000 images with WebAssembly and needs this folder (forward slashes, trailing slash).
+const wasmUrl = path.join(path.dirname(fileURLToPath(import.meta.resolve("pdfjs-dist/package.json"))), "wasm").split(path.sep).join("/") + "/";
 const jobs = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const byPdf = new Map();
 for (const job of jobs) {
@@ -21,7 +24,7 @@ for (const job of jobs) {
 
 for (const [pdfPath, pdfJobs] of byPdf) {
   const data = new Uint8Array(fs.readFileSync(pdfPath));
-  const task = pdfjs.getDocument({ data, verbosity: 0 });
+  const task = pdfjs.getDocument({ data, verbosity: 0, wasmUrl });
   const doc = await task.promise;
   for (const job of pdfJobs) {
     const page = await doc.getPage(job.page + 1);

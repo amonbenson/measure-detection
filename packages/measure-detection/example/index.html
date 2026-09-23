@@ -106,7 +106,8 @@ $("file").addEventListener("change", async () => {
   try {
     status("Loading models...");
     const det = await getDetector();
-    const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    // wasmUrl: pdf.js decodes JBIG2 and JPEG 2000 scans with WebAssembly; without it such pages render blank.
+    const pdf = await pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()), wasmUrl: "/node_modules/pdfjs-dist/wasm/" }).promise;
     const layers = await showPages(pdf);
     const t0 = performance.now();
     const names = { scan: "Scanning pages", detect: "Detecting measures", label: "Reading measure numbers" };

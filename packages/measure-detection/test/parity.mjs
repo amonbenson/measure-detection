@@ -12,6 +12,8 @@ import { createCanvas } from "@napi-rs/canvas";
 import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { MeasureDetector } from "../dist/index.js";
 
+// pdf.js decodes JBIG2 and JPEG 2000 images with WebAssembly and needs this folder (forward slashes, trailing slash).
+const wasmUrl = path.join(path.dirname(fileURLToPath(import.meta.resolve("pdfjs-dist/package.json"))), "wasm").split(path.sep).join("/") + "/";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const models = path.join(here, "..", "models");
 const dir = process.env.MDET_PARITY_DIR || path.join(here, "..", "..", "..", "runs", "parity");
@@ -35,7 +37,7 @@ let pages = 0, failures = 0, maxErr = 0, measures = 0;
 const t0 = Date.now();
 for (const item of index) {
   const golden = JSON.parse(fs.readFileSync(item.golden, "utf8"));
-  const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(item.pdf)), verbosity: 0 }).promise;
+  const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(item.pdf)), verbosity: 0, wasmUrl }).promise;
   const got = await detector.detect(doc, { startConvention: item.convention, canvas: (w, h) => createCanvas(w, h) });
   const byPage = (list) => {
     const m = new Map();

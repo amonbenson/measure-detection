@@ -11,11 +11,13 @@ import { detectSystems } from "../dist/staves.js";
 import { makeStrip, rectify } from "../dist/rectify.js";
 import { loadModels, boundarySignals } from "../dist/models.js";
 
+// pdf.js decodes JBIG2 and JPEG 2000 images with WebAssembly and needs this folder (forward slashes, trailing slash).
+const wasmUrl = path.join(path.dirname(fileURLToPath(import.meta.resolve("pdfjs-dist/package.json"))), "wasm").split(path.sep).join("/") + "/";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const [pdfPath, pageArg] = process.argv.slice(2);
 const p = Number(pageArg ?? 0);
 const canvas = (w, h) => createCanvas(w, h);
-const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(pdfPath)), verbosity: 0 }).promise;
+const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(pdfPath)), verbosity: 0, wasmUrl }).promise;
 const models = await loadModels(
   {
     measurenet: new Uint8Array(fs.readFileSync(path.join(here, "..", "models", "measurenet.onnx"))),

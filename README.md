@@ -35,7 +35,8 @@ const detector = await MeasureDetector.create({
   models: { measurenet: "/models/measurenet.onnx", labelocr: "/models/labelocr.onnx" },
   decoder: await (await fetch("/models/decoder.json")).json(),
 });
-const pdf = await pdfjs.getDocument({ url }).promise;
+// wasmUrl lets pdf.js decode JBIG2 and JPEG 2000 scans; serve node_modules/pdfjs-dist/wasm/ there.
+const pdf = await pdfjs.getDocument({ url, wasmUrl: "/pdfjs-wasm/" }).promise;
 const measures = await detector.detect(pdf, { startConvention: "system-edge" });
 // [{ layout: { page, x, y, width, height }, value: "12", quad: [[x, y], ...], confidence, ... }]
 ```
