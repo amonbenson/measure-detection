@@ -16,7 +16,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 140,
-  "num_pages": 20
+  "num_pages": 20,
+  "start_convention": "system-edge"
  },
  "23xhkt5stjukwv9": {
   "score_type": "piano-conductor",
@@ -35,7 +36,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 65,
-  "num_pages": 8
+  "num_pages": 8,
+  "start_convention": "system-edge"
  },
  "2ryfjm9a5p1pvxy": {
   "score_type": "vocal",
@@ -70,7 +72,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 145,
-  "num_pages": 19
+  "num_pages": 19,
+  "start_convention": "system-edge"
  },
  "4m0vg5h5ulgyfvs": {
   "score_type": "piano-conductor",
@@ -89,7 +92,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 32,
-  "num_pages": 4
+  "num_pages": 4,
+  "start_convention": "system-edge"
  },
  "4uewiohumcvyd2l": {
   "score_type": "piano-conductor",
@@ -108,7 +112,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 8,
-  "num_pages": 1
+  "num_pages": 1,
+  "start_convention": "system-edge"
  },
  "5bu88s20mzndpax": {
   "score_type": "piano-conductor",
@@ -128,7 +133,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 140,
-  "num_pages": 19
+  "num_pages": 19,
+  "start_convention": "system-edge"
  },
  "62n05iob969y7ij": {
   "score_type": "piano-conductor",
@@ -147,7 +153,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 64,
-  "num_pages": 8
+  "num_pages": 8,
+  "start_convention": "system-edge"
  },
  "6hx79sbq8gwhojk": {
   "score_type": "piano-conductor",
@@ -166,7 +173,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 20,
-  "num_pages": 3
+  "num_pages": 3,
+  "start_convention": "system-edge"
  },
  "6ot9micuwddvoyl": {
   "score_type": "piano-conductor",
@@ -185,7 +193,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 76,
-  "num_pages": 7
+  "num_pages": 7,
+  "start_convention": "system-edge"
  },
  "7f171y3j2gwox35": {
   "score_type": "piano-conductor",
@@ -204,7 +213,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 44,
-  "num_pages": 4
+  "num_pages": 4,
+  "start_convention": "system-edge"
  },
  "7htp6xronz2i0gz": {
   "score_type": "piano-conductor",
@@ -223,7 +233,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 99,
-  "num_pages": 7
+  "num_pages": 7,
+  "start_convention": "system-edge"
  },
  "7s27mlk7wwv8a98": {
   "score_type": "piano-conductor",
@@ -242,7 +253,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 25,
-  "num_pages": 4
+  "num_pages": 4,
+  "start_convention": "system-edge"
  },
  "7tu94weaocrqymv": {
   "score_type": "piano-conductor",
@@ -261,7 +273,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 22,
-  "num_pages": 3
+  "num_pages": 3,
+  "start_convention": "system-edge"
  },
  "8dq33liwx27xleb": {
   "score_type": "piano-conductor",
@@ -280,7 +293,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 148,
-  "num_pages": 19
+  "num_pages": 19,
+  "start_convention": "system-edge"
  },
  "8w0r80g34w6gvv3": {
   "score_type": "vocal",
@@ -299,7 +313,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 188,
-  "num_pages": 11
+  "num_pages": 11,
+  "start_convention": "after-header"
  },
  "8zd09swxbbt66uj": {
   "score_type": "vocal",
@@ -318,7 +333,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 117,
-  "num_pages": 10
+  "num_pages": 10,
+  "start_convention": "system-edge"
  },
  "9eaqo0u11phy4qn": {
   "score_type": "vocal",
@@ -337,7 +353,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 166,
-  "num_pages": 16
+  "num_pages": 16,
+  "start_convention": "after-header"
  },
  "9nkd4xk5hq016t5": {
   "score_type": "piano-conductor",
@@ -356,7 +373,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 24,
-  "num_pages": 4
+  "num_pages": 4,
+  "start_convention": "system-edge"
  },
  "a4sa652eqjs6its": {
   "score_type": "piano-conductor",
@@ -375,7 +393,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 358,
-  "num_pages": 39
+  "num_pages": 39,
+  "start_convention": "system-edge"
  },
  "ad10tjs26k09u25": {
   "score_type": "piano-conductor",
@@ -394,7 +413,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 13,
-  "num_pages": 3
+  "num_pages": 3,
+  "start_convention": "system-edge"
  },
  "atft0x5dl4fefbl": {
   "score_type": "vocal",
@@ -413,7 +433,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 123,
-  "num_pages": 6
+  "num_pages": 6,
+  "start_convention": "after-header"
  },
  "av3hfu081tymefw": {
   "score_type": "piano-conductor",
@@ -432,7 +453,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 48,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "system-edge"
  },
  "awy8ewgq4bhzvy0": {
   "score_type": "piano-conductor",
@@ -451,7 +473,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 71,
-  "num_pages": 11
+  "num_pages": 11,
+  "start_convention": "system-edge"
  },
  "bhewvfj5x84xw5a": {
   "score_type": "vocal",
@@ -470,7 +493,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 142,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "after-header"
  },
  "bx7ml3j5hjpjnqg": {
   "score_type": "piano-conductor",
@@ -489,7 +513,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 6,
-  "num_pages": 1
+  "num_pages": 1,
+  "start_convention": "system-edge"
  },
  "chv66527fko2acu": {
   "score_type": "vocal",
@@ -508,7 +533,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 41,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "after-header"
  },
  "efn7173022qv0zl": {
   "score_type": "piano-conductor",
@@ -527,7 +553,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 112,
-  "num_pages": 12
+  "num_pages": 12,
+  "start_convention": "system-edge"
  },
  "f2fwbhhnzme1800": {
   "score_type": "vocal",
@@ -546,7 +573,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 154,
-  "num_pages": 9
+  "num_pages": 9,
+  "start_convention": "after-header"
  },
  "f8h10derj70hzdw": {
   "score_type": "piano-conductor",
@@ -565,7 +593,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 157,
-  "num_pages": 17
+  "num_pages": 17,
+  "start_convention": "system-edge"
  },
  "fuyaa2rl4ris0g8": {
   "score_type": "piano-conductor",
@@ -584,7 +613,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 4,
-  "num_pages": 1
+  "num_pages": 1,
+  "start_convention": "system-edge"
  },
  "h0jn07p730xifjt": {
   "score_type": "piano-conductor",
@@ -603,7 +633,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 4,
-  "num_pages": 1
+  "num_pages": 1,
+  "start_convention": "system-edge"
  },
  "jtmrafex42858ea": {
   "score_type": "vocal",
@@ -622,7 +653,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 245,
-  "num_pages": 22
+  "num_pages": 22,
+  "start_convention": "system-edge"
  },
  "kygymp4qjts4n4i": {
   "score_type": "piano-conductor",
@@ -641,7 +673,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 18,
-  "num_pages": 3
+  "num_pages": 3,
+  "start_convention": "system-edge"
  },
  "l8jl5pinaldrke1": {
   "score_type": "vocal",
@@ -660,7 +693,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 198,
-  "num_pages": 10
+  "num_pages": 10,
+  "start_convention": "after-header"
  },
  "lm6hyqsfitqw9dr": {
   "score_type": "piano-conductor",
@@ -679,7 +713,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 96,
-  "num_pages": 10
+  "num_pages": 10,
+  "start_convention": "system-edge"
  },
  "lpd061p9ffem0gz": {
   "score_type": "piano-conductor",
@@ -698,7 +733,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 48,
-  "num_pages": 4
+  "num_pages": 4,
+  "start_convention": "system-edge"
  },
  "m1128onnnb5s7b6": {
   "score_type": "vocal",
@@ -717,7 +753,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 129,
-  "num_pages": 7
+  "num_pages": 7,
+  "start_convention": "after-header"
  },
  "nmdyxt0rjxjxdkp": {
   "score_type": "vocal",
@@ -736,7 +773,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 166,
-  "num_pages": 6
+  "num_pages": 6,
+  "start_convention": "after-header"
  },
  "nstuqmrcarybe5i": {
   "score_type": "vocal",
@@ -755,7 +793,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 166,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "after-header"
  },
  "pbizdvryrhe8ie4": {
   "score_type": "piano-conductor",
@@ -774,7 +813,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 144,
-  "num_pages": 18
+  "num_pages": 18,
+  "start_convention": "system-edge"
  },
  "ppc9mmvlu6vrhum": {
   "score_type": "piano-conductor",
@@ -793,7 +833,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 70,
-  "num_pages": 7
+  "num_pages": 7,
+  "start_convention": "system-edge"
  },
  "qmgaocfyqmzwb2z": {
   "score_type": "vocal",
@@ -812,7 +853,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 84,
-  "num_pages": 6
+  "num_pages": 6,
+  "start_convention": "after-header"
  },
  "sfabennoo4r02re": {
   "score_type": "vocal",
@@ -831,7 +873,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 29,
-  "num_pages": 3
+  "num_pages": 3,
+  "start_convention": "after-header"
  },
  "sxavqmrags52iri": {
   "score_type": "piano-conductor",
@@ -850,7 +893,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 8,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "after-header"
  },
  "tuhlxyda7b5o074": {
   "score_type": "piano-conductor",
@@ -869,7 +913,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 7,
-  "num_pages": 1
+  "num_pages": 1,
+  "start_convention": "after-header"
  },
  "tvvdwyu34y630u6": {
   "score_type": "piano-conductor",
@@ -888,7 +933,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 238,
-  "num_pages": 28
+  "num_pages": 28,
+  "start_convention": "system-edge"
  },
  "tz0p45dvntcmnql": {
   "score_type": "vocal",
@@ -923,7 +969,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 130,
-  "num_pages": 18
+  "num_pages": 18,
+  "start_convention": "system-edge"
  },
  "vdku6w0wglx0qt3": {
   "score_type": "piano-conductor",
@@ -942,7 +989,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 40,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "system-edge"
  },
  "wszwqw6l5nq36f9": {
   "score_type": "piano-conductor",
@@ -961,7 +1009,8 @@
   "labeled": true,
   "has_alphanumeric_labels": true,
   "num_measures": 37,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "system-edge"
  },
  "xv50fos27fzaloe": {
   "score_type": "piano-conductor",
@@ -980,7 +1029,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 64,
-  "num_pages": 10
+  "num_pages": 10,
+  "start_convention": "system-edge"
  },
  "y06pppp8wchggg0": {
   "score_type": "piano-conductor",
@@ -999,7 +1049,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 16,
-  "num_pages": 2
+  "num_pages": 2,
+  "start_convention": "system-edge"
  },
  "y19zm06buu6evtc": {
   "score_type": "vocal",
@@ -1018,7 +1069,8 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 13,
-  "num_pages": 1
+  "num_pages": 1,
+  "start_convention": "after-header"
  },
  "y77xi51ssmvbivq": {
   "score_type": "vocal",
@@ -1037,6 +1089,7 @@
   "labeled": true,
   "has_alphanumeric_labels": false,
   "num_measures": 116,
-  "num_pages": 5
+  "num_pages": 5,
+  "start_convention": "system-edge"
  }
 }

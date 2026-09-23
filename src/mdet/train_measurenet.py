@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 
 from .augment import crop_strip, geometric_strip, photometric
 from .boundaries import decode
-from .data import DERIVED, RUNS, read_split
+from .data import DERIVED, RUNS, read_meta, read_split
 from .evaluate import match_boundaries
 from .models import MeasureNet, count_parameters
 from .staves import S
@@ -28,15 +28,22 @@ from .targets import load_samples
 
 STRIDE = 2
 SIGMA = 0.5 * S / STRIDE  # Gaussian sigma in output columns
+# Fixed training shapes (guideline 8.2 shape buckets): few distinct shapes keep GPU memory stable.
+HEIGHT_BUCKETS = (192, 320, 448, 576, 704, 832)
+TRAIN_WIDTH = 1216
+CONVENTIONS = ("system-edge", "after-header")  # start channel 0 and 1
+BARLINE, OFFSET = 2, 3  # output channels
 
 
 def load_strips(doc_ids: list[str]) -> list[dict]:
+    meta = read_meta()
     out = []
     for d in doc_ids:
         for f in sorted((DERIVED / "strips" / d).glob("*.npz")):
             for s in load_samples(f):
                 s["doc_id"] = d
                 s["page"] = int(f.stem)
+                s["convention"] = meta[d]["start_convention"]
                 out.append(s)
     return out
 
@@ -52,29 +59,33 @@ def make_input(img: np.ndarray, bands: np.ndarray) -> np.ndarray:
     return x
 
 
-def make_targets(width: int, bounds: np.ndarray, virtual: np.ndarray, keep: np.ndarray, has_start: bool):
-    """Heatmaps (2, C), ignore mask (C), offset target and positive indices, C = ceil(width / STRIDE)."""
+def make_targets(width: int, bounds: np.ndarray, virtual: np.ndarray, keep: np.ndarray, has_start: bool, convention: str):
+    """Heatmaps (3, C), validity mask (3, C), positive indices and offsets, C = ceil(width / STRIDE).
+
+    Only the start channel of the document's convention is trained; the other one is masked.
+    """
     c = math.ceil(width / STRIDE)
-    heat = np.zeros((2, c), np.float32)
-    ignore = np.zeros(c, bool)
+    heat = np.zeros((3, c), np.float32)
+    valid = np.ones((3, c), bool)
+    start_ch = CONVENTIONS.index(convention)
+    valid[1 - start_ch] = False
     cols = np.arange(c, dtype=np.float32)
-    pos_idx, pos_ch, pos_off = [], [], []
+    pos_idx, pos_off = [], []
     for k, u in enumerate(bounds):
         if not keep[k]:
             continue
         cu = u / STRIDE
-        ch = 0 if (k == 0 and has_start) else 1
+        ch = start_ch if (k == 0 and has_start) else BARLINE
         if virtual[k]:
-            ignore |= np.abs(cols + 0.5 - cu) <= S / STRIDE
+            valid[BARLINE] &= ~(np.abs(cols + 0.5 - cu) <= S / STRIDE)
             continue
         g = np.exp(-((cols + 0.5 - cu) ** 2) / (2 * SIGMA**2))
         heat[ch] = np.maximum(heat[ch], g)
         i = int(np.clip(np.floor(cu), 0, c - 1))
         heat[ch, i] = 1.0
         pos_idx.append(i)
-        pos_ch.append(ch)
         pos_off.append(cu - i)
-    return heat, ignore, np.asarray(pos_idx, np.int64), np.asarray(pos_off, np.float32)
+    return heat, valid, np.asarray(pos_idx, np.int64), np.asarray(pos_off, np.float32)
 
 
 class StripDataset(Dataset):
@@ -102,11 +113,21 @@ class StripDataset(Dataset):
             if rng.random() < 0.2:
                 img, bounds, keep = crop_strip(img, bounds, keep, rng)
                 has_start = bool(keep[0])
+            if img.shape[1] > TRAIN_WIDTH:
+                img, bounds, keep = crop_strip(img, bounds, keep, rng, min_frac=TRAIN_WIDTH / img.shape[1])
+                img = img[:, :TRAIN_WIDTH]
+                keep &= bounds < TRAIN_WIDTH
+                has_start = bool(keep[0])
+            if img.shape[0] > HEIGHT_BUCKETS[-1]:
+                # Very tall strips: keep the centre rows (rare; a system taller than 104 s).
+                cut = (img.shape[0] - HEIGHT_BUCKETS[-1]) // 2
+                img = img[cut : cut + HEIGHT_BUCKETS[-1]]
+                bands = np.clip(bands - cut, 0, HEIGHT_BUCKETS[-1] - 1)
             other = self.strips[int(rng.integers(len(self.strips)))]["image"]
             img = photometric(img, rng, other)
         x = make_input(img, bands)
-        heat, ignore, pidx, poff = make_targets(img.shape[1], bounds, virtual, keep, has_start)
-        return x, heat, ignore, pidx, poff
+        heat, valid, pidx, poff = make_targets(img.shape[1], bounds, virtual, keep, has_start, s["convention"])
+        return x, heat, valid, pidx, poff
 
 
 class HeightBucketSampler(Sampler):
@@ -140,20 +161,19 @@ class HeightBucketSampler(Sampler):
 
 def collate(items):
     hmax = max(x.shape[1] for x, *_ in items)
-    wmax = max(x.shape[2] for x, *_ in items)
-    hmax = (hmax + 7) // 8 * 8
-    wmax = (wmax + 15) // 16 * 16
+    hmax = next((b for b in HEIGHT_BUCKETS if b >= hmax), (hmax + 127) // 128 * 128)
+    wmax = TRAIN_WIDTH
     c = wmax // STRIDE
     b = len(items)
     xs = torch.zeros(b, 2, hmax, wmax)
-    heat = torch.zeros(b, 2, c)
-    valid = torch.zeros(b, c, dtype=torch.bool)
+    heat = torch.zeros(b, 3, c)
+    valid = torch.zeros(b, 3, c, dtype=torch.bool)
     pos_b, pos_i, pos_o = [], [], []
-    for k, (x, h, ig, pidx, poff) in enumerate(items):
+    for k, (x, h, vd, pidx, poff) in enumerate(items):
         xs[k, :, : x.shape[1], : x.shape[2]] = torch.from_numpy(x)
         n = h.shape[1]
         heat[k, :, :n] = torch.from_numpy(h)
-        valid[k, :n] = torch.from_numpy(~ig)
+        valid[k, :, :n] = torch.from_numpy(vd)
         pos_b += [k] * len(pidx)
         pos_i += pidx.tolist()
         pos_o += poff.tolist()
@@ -167,8 +187,8 @@ def focal_loss(logits: torch.Tensor, heat: torch.Tensor, valid: torch.Tensor) ->
     neg_w = (1 - heat) ** 4
     lpos = -torch.log(p) * (1 - p) ** 2 * pos
     lneg = -torch.log(1 - p) * p**2 * neg_w * (1 - pos)
-    v = valid[:, None, :].float()
-    return ((lpos + lneg) * v).sum() / pos.sum().clamp(min=1)
+    v = valid.float()
+    return ((lpos + lneg) * v).sum() / (pos * v).sum().clamp(min=1)
 
 
 @torch.no_grad()
@@ -178,11 +198,13 @@ def evaluate_strips(model, strips: list[dict], device, tau: float = 0.5) -> dict
     for s in strips:
         x = make_input(s["image"], np.asarray(s["staff_bands"]).reshape(-1, 2))
         h, w = x.shape[1:]
-        xp = np.zeros((2, (h + 7) // 8 * 8, (w + 15) // 16 * 16), np.float32)
+        hb = next((b for b in HEIGHT_BUCKETS if b >= h), (h + 127) // 128 * 128)
+        xp = np.zeros((2, hb, max(TRAIN_WIDTH, (w + 127) // 128 * 128)), np.float32)
         xp[:, :h, :w] = x
         y = model(torch.from_numpy(xp)[None].to(device))[0].float().cpu().numpy()
         c = math.ceil(w / STRIDE)
-        pr = decode(1 / (1 + np.exp(-y[0, :c])), 1 / (1 + np.exp(-y[1, :c])), y[2, :c], STRIDE, tau)
+        sc = CONVENTIONS.index(s["convention"])
+        pr = decode(1 / (1 + np.exp(-y[sc, :c])), 1 / (1 + np.exp(-y[BARLINE, :c])), y[OFFSET, :c], STRIDE, tau)
         pu = [u for u, _ in pr]
         gb = np.asarray(s["boundaries"])[~np.asarray(s["virtual"], bool)]
         m = match_boundaries(pu, gb.tolist(), 1.0 * S)
@@ -210,6 +232,9 @@ def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if device.type == "cuda":
+        # Without a cap, the caching allocator can grow past the card and Windows falls back to slow system memory.
+        torch.cuda.set_per_process_memory_fraction(0.8)
 
     train_docs = args.train_docs or [d for sp in args.train_splits for d in read_split(sp)]
     val_docs = args.val_docs or read_split(args.val_split)
@@ -238,9 +263,9 @@ def main() -> None:
             xs, heat, valid = xs.to(device, non_blocking=True), heat.to(device), valid.to(device)
             with torch.autocast("cuda", dtype=torch.float16):
                 y = model(xs)
-            loss = focal_loss(y[:, :2], heat, valid)
+            loss = focal_loss(y[:, :3], heat, valid)
             if len(pb):
-                off = y[pb.to(device), 2, pi.to(device)].float()
+                off = y[pb.to(device), OFFSET, pi.to(device)].float()
                 loss = loss + F.l1_loss(off, po.to(device))
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
@@ -257,6 +282,8 @@ def main() -> None:
         rec = {"epoch": ep, "loss": tot / len(sampler), "time": time.time() - t0}
         if ep % 5 == 4 or ep == args.epochs - 1:
             rec["val"] = evaluate_strips(ema, val, device)
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
             if rec["val"]["f1"] > best:
                 best = rec["val"]["f1"]
                 torch.save({"model": ema.state_dict(), "epoch": ep, "val": rec["val"], "train_docs": train_docs, "args": vars(args)}, out / "best.pt")

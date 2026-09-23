@@ -29,11 +29,12 @@ The loader (`src/mdet/data.py`) applies these rules in order.
 | Question (guideline 5.3) | Answer |
 |---|---|
 | Vertical extent | Inconsistent. show A: top staff line to bottom staff line of the system. show B: top staff line to either the bottom staff line or below the lyrics. Predictions span top staff line to bottom staff line; evaluation matches systems by vertical intersection over the smaller height |
-| Start of the first measure | show A: the system's opening line, or the start-repeat barline if the system begins with one. show B: after clef and key signature, or at the start-repeat barline |
+| Start of the first measure | Two conventions, chosen per document by the annotator (not per show): `system-edge` (the system's opening line, or the start-repeat barline if the system begins with one; 38 documents) and `after-header` (after clef, key and time signature; 15 documents: 13 show B, 2 show A). Nothing in the image determines the choice, so the runtime takes it as a setting (default `system-edge`) and evaluation uses each document's annotated convention (`start_convention` in `dataset/meta.json`) |
 | Right edge | The barline, including final and end-repeat barlines |
 | Pickup | Labeled `0` (6 documents start with `0`) |
 | Multi-measure rests | One printed rest with a range label (`12-15`, `30 A-30 D`) is annotated as N equal-width boxes, one per measure. The inner boundaries have no barline (virtual boundaries) |
 | Repeats and endings | Each printed measure has one box. Repeat passes have no box |
+| title block placeholders | Two show B title pages annotate a "title block" title block as a measure labeled `A`. No staff exists there. Kept as is (label noise); it costs one missed system per page |
 | Pages without music | Labeled with no entries. All 7 such pages are "turn the page" pages: true negatives |
 | Every measure labeled | Yes, except show B songs 11 and 14, which have no entries at all and are excluded |
 | Tiling | Consecutive boxes in a row share the boundary within 1e-4 in all but 8 cases (max overlap 0.004 of page width) |

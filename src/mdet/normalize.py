@@ -6,6 +6,27 @@ import cv2
 import numpy as np
 
 
+def _area_weights(src: int, dst: int) -> np.ndarray:
+    """(dst, src) matrix: each output cell averages the source interval it covers (box filter)."""
+    scale = src / dst
+    w = np.zeros((dst, src), np.float64)
+    for d in range(dst):
+        a, b = d * scale, (d + 1) * scale
+        i0, i1 = int(np.floor(a)), min(src, int(np.ceil(b)))
+        for i in range(i0, i1):
+            w[d, i] = min(b, i + 1) - max(a, i)
+        w[d] /= w[d].sum()
+    return w
+
+
+def resize_area(gray: np.ndarray, width: int, height: int) -> np.ndarray:
+    """Exact area-coverage resize (up or down), rounded half up. Reproduced bit-exactly by the browser runtime."""
+    wy = _area_weights(gray.shape[0], height)
+    wx = _area_weights(gray.shape[1], width)
+    out = wy @ gray.astype(np.float64) @ wx.T
+    return np.clip(np.floor(out + 0.5), 0, 255).astype(np.uint8)
+
+
 def binarize(gray: np.ndarray) -> np.ndarray:
     """Otsu threshold. Returns uint8 with 1 = ink."""
     _, bw = cv2.threshold(gray, 0, 1, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
@@ -75,7 +96,7 @@ def estimate_skew(gray: np.ndarray, s: float, max_deg: float = 5.0) -> float:
     coarse to fine. Runs on a copy scaled to s = 4 px.
     """
     f = 4.0 / s
-    small = cv2.resize(gray, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
+    small = resize_area(gray, max(1, int(round(gray.shape[1] * f))), max(1, int(round(gray.shape[0] * f))))
     bw = binarize(small)
     # Opening with a horizontal element suppresses text and notes but keeps slightly tilted lines.
     lines = cv2.morphologyEx(bw, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (9, 1))).astype(np.float32)

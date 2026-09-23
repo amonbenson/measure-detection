@@ -12,6 +12,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 
+from .normalize import resize_area
 from .rectify import Strip, rectify
 from .staves import S
 
@@ -101,7 +102,7 @@ def ocr_input(crop_img: np.ndarray, height: int = 32, width: int = 128) -> np.nd
     """Resize to the LabelOCR input: height 32, width padded to 128 (squeezed if wider). Ink = 1."""
     h, w = crop_img.shape
     nw = max(1, min(width, int(round(w * height / max(h, 1)))))
-    r = cv2.resize(crop_img, (nw, height), interpolation=cv2.INTER_AREA)
+    r = resize_area(crop_img, nw, height)
     out = np.zeros((height, width), np.float32)
     out[:, :nw] = 1.0 - r.astype(np.float32) / 255.0
     return out

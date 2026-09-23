@@ -11,7 +11,9 @@ import argparse
 import json
 import random
 
-from .data import DATASET, SPLITS, all_document_ids, load_document
+import numpy as np
+
+from .data import DATASET, SPLITS, all_document_ids, load_document, read_split
 
 # Show-level metadata, established during the audit (docs/CONVENTIONS.md).
 SHOW_META = {
@@ -44,6 +46,20 @@ DOC_OVERRIDES = {
 }
 
 
+def start_convention(doc_id: str) -> str | None:
+    """Annotation convention of the first measure of each system (docs/CONVENTIONS.md):
+    "system-edge" (start at the system's opening line or start-repeat barline) or
+    "after-header" (start after clef, key and time signature). Median offset of the annotated start
+    from the detected system start, threshold 3 s. None if strips are not built yet."""
+    from .targets import load_samples
+
+    files = sorted((DATASET / "derived" / "strips" / doc_id).glob("*.npz"))
+    off = [(s["boundaries"][0] - s["strip"]["system_u0"]) / 8.0 for f in files for s in load_samples(f)]
+    if not off:
+        return None
+    return "after-header" if float(np.median(off)) > 3.0 else "system-edge"
+
+
 def build_meta() -> dict[str, dict]:
     meta = {}
     for doc_id in all_document_ids(labeled_only=False):
@@ -58,6 +74,7 @@ def build_meta() -> dict[str, dict]:
             m["has_alphanumeric_labels"] = any(not ms.label.isdigit() for ms in doc.measures)
             m["num_measures"] = len(doc.measures)
             m["num_pages"] = doc.num_pages
+            m["start_convention"] = start_convention(doc_id)
         meta[doc_id] = m
     return meta
 
@@ -75,10 +92,44 @@ def build_splits(meta: dict[str, dict], seed: int = 20260923) -> dict[str, list[
     return {k: sorted(v) for k, v in splits.items()}
 
 
+def build_challenge() -> list[str]:
+    """Pages of test documents selected by rule (guideline 5.7): alphanumeric labels, multi-measure
+    rests (virtual boundaries), skew above 1 degree, or scan shear above 0.01 (0.6 degrees)."""
+    from .geometry import PageGeometry
+    from .targets import load_samples
+
+    out = []
+    for d in read_split("test"):
+        doc = load_document(d)
+        for p in range(doc.num_pages):
+            rows = doc.rows_on_page(p)
+            if not rows:
+                continue
+            reasons = []
+            if any(not m.label.isdigit() for r in rows for m in r.measures):
+                reasons.append("alphanumeric")
+            samples = load_samples(DATASET / "derived" / "strips" / d / f"{p:03d}.npz")
+            if any(np.asarray(s["virtual"]).any() for s in samples):
+                reasons.append("multi-measure-rest")
+            if abs(PageGeometry.load(d, p).info["deskew_deg"]) > 1.0:
+                reasons.append("skew")
+            if any(abs(s["strip"]["shear"]) > 0.01 for s in samples):
+                reasons.append("shear")
+            if reasons:
+                out.append(f"{d} {p} {','.join(reasons)}")
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--force", action="store_true")
+    ap.add_argument("--challenge", action="store_true", help="write challenge.txt (needs derived strips)")
     args = ap.parse_args()
+    if args.challenge:
+        lines = build_challenge()
+        (SPLITS / "challenge.txt").write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+        print(f"challenge: {len(lines)} pages")
+        return
     meta = build_meta()
     (DATASET / "meta.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     SPLITS.mkdir(parents=True, exist_ok=True)

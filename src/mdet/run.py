@@ -14,7 +14,7 @@ import pickle
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from .data import RUNS, load_document, read_split
+from .data import RUNS, load_document, read_meta, read_split
 from .evaluate import PageResult, PredSystem, evaluate_page, summarize
 from .pipeline import measures_from_boundaries, page_systems
 from .rectify import rectify
@@ -25,23 +25,27 @@ def predict_page(doc_id: str, page: int, detector) -> tuple[list[PredSystem], li
     for ps in systems:
         img = rectify(gray, ps.strip)
         bnd = detector(img, ps.strip)
+        ps.us = [b[0] for b in bnd]
         ps.pred.measures = measures_from_boundaries(geo, ps.strip, ps.pred, [b[0] for b in bnd], [b[1] for b in bnd])
     return [ps.pred for ps in systems], systems, geo
 
 
-def make_detector(kind: str, ckpt: str | None, tau: float | None):
+def make_detector(kind: str, ckpt: str | None, tau: float | None, convention: str = "system-edge"):
     if kind == "classical":
         from .boundaries import classical_detector
 
         return classical_detector() if tau is None else classical_detector(tau)
     from .infer import MeasureNetDetector
 
-    return MeasureNetDetector(ckpt, tau_b=tau)
+    return MeasureNetDetector(ckpt, tau_b=tau, convention=convention)
 
 
 def run_document(args: tuple) -> list[tuple[PageResult, list[PredSystem]]]:
-    doc_id, kind, ckpt, tau, labels = args
-    detector = make_detector(kind, ckpt, tau)
+    doc_id, kind, ckpt, tau, labels, convention = args
+    if convention == "document":
+        # The start convention is a user setting; evaluation uses the document's annotated convention.
+        convention = read_meta()[doc_id]["start_convention"]
+    detector = make_detector(kind, ckpt, tau, convention)
     doc = load_document(doc_id)
     out = []
     per_page = []
@@ -58,9 +62,9 @@ def run_document(args: tuple) -> list[tuple[PageResult, list[PredSystem]]]:
     return out
 
 
-def evaluate_split(split: str, kind: str, ckpt: str | None = None, tau: float | None = None, labels: str | None = None, workers: int = 6, docs: list[str] | None = None):
+def evaluate_split(split: str, kind: str, ckpt: str | None = None, tau: float | None = None, labels: str | None = None, workers: int = 6, docs: list[str] | None = None, convention: str = "document"):
     docs = docs or read_split(split)
-    jobs = [(d, kind, ckpt, tau, labels) for d in docs]
+    jobs = [(d, kind, ckpt, tau, labels, convention) for d in docs]
     results: list[PageResult] = []
     preds = {}
     if workers > 1:
@@ -82,11 +86,12 @@ def main() -> None:
     ap.add_argument("--labels", help="LabelOCR checkpoint; enables Stages 4 and 5")
     ap.add_argument("--split", default="val")
     ap.add_argument("--tau", type=float)
+    ap.add_argument("--convention", default="document", choices=["document", "system-edge", "after-header"], help="start convention: the document's annotated one, or fixed")
     ap.add_argument("--name")
     ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
     name = args.name or f"{args.detector}_{args.split}"
-    summary, results, preds = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers)
+    summary, results, preds = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, convention=args.convention)
     out = RUNS / "eval" / name
     out.mkdir(parents=True, exist_ok=True)
     (out / "summary.json").write_text(json.dumps(summary, indent=1), encoding="utf-8", newline="\n")

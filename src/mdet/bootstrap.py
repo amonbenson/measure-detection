@@ -8,8 +8,12 @@ left boundary agrees with the document's placement statistics:
 A multi-measure rest (measures separated by virtual boundaries) expects its range label `a-b`.
 Candidates of rows in which every measure matched are negatives (target: empty string).
 
+Self-training (guideline 5.5 step 6): with --ocr, a trained LabelOCR reads every candidate. A
+unit that pass 2 did not match accepts the nearest candidate whose top reading equals its text,
+within the pass-1 window (glyph count not required).
+
 Output: dataset/derived/numbers/<doc_id>.npz with crops (s = 16), texts and placement records.
-Usage: uv run python -m mdet.bootstrap [--workers 6]
+Usage: uv run python -m mdet.bootstrap [--workers 6] [--ocr runs/labelocr/best.pt]
 """
 
 from __future__ import annotations
@@ -107,8 +111,17 @@ def _nearest(cands, u_left: float, text: str, window=(-3.0, 4.0), side: str | No
     return best
 
 
-def bootstrap_document(doc_id: str) -> dict:
+def bootstrap_document(doc_id: str, ocr_ckpt: str | None = None) -> dict:
     data = collect_document(doc_id)
+    readings = None
+    if ocr_ckpt:
+        from .infer import LabelReader
+        from .text import ocr_input
+
+        reader = LabelReader(ocr_ckpt)
+        for r in data["rows"]:
+            r["reads"] = [h[0][0] if h else "" for h in reader([ocr_input(c) for c in r["crops"]])]
+        readings = True
     # Pass 1: placement statistics per (side, position).
     obs: dict[str, list[float]] = {}
     for r in data["rows"]:
@@ -148,6 +161,15 @@ def bootstrap_document(doc_id: str) -> dict:
                     d = abs((r["cands"][ci].uc - u_left) / S - st["median"])
                     if best is None or d < best[1]:
                         best = (ci, d)
+            if best is None and readings:
+                window = WINDOW[pos]
+                near = [
+                    (abs((c.uc - u_left) / S), ci)
+                    for ci, c in enumerate(r["cands"])
+                    if ci not in used and r["reads"][ci] == un["text"] and window[0] <= (c.uc - u_left) / S <= window[1]
+                ]
+                if near:
+                    best = (min(near)[1], 0.0)
             if best is None:
                 all_matched = False
                 continue
@@ -182,12 +204,14 @@ def load_numbers(doc_id: str) -> tuple[list[np.ndarray], list[str], list[dict], 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--workers", type=int, default=6)
+    ap.add_argument("--ocr", help="LabelOCR checkpoint for the self-training round")
     args = ap.parse_args()
     docs = all_document_ids()
+    from functools import partial
     rep = ["# Measure-number bootstrapping report", "", "| Document | Printed units | Matched | Rate | Negatives | Placement |", "|---|---|---|---|---|---|"]
     tu = tm = 0
     with ProcessPoolExecutor(args.workers) as ex:
-        for r in ex.map(bootstrap_document, docs):
+        for r in ex.map(partial(bootstrap_document, ocr_ckpt=args.ocr), docs):
             tu += r["units"]
             tm += r["matched"]
             pl = ", ".join(f"{k}: {v['median']:+.2f} s (tol {v['tol']:.2f}, n {v['n']})" for k, v in r["stats"].items())
@@ -195,7 +219,8 @@ def main() -> None:
             print(rep[-1], flush=True)
     rep += ["", f"Total: {tm} of {tu} printed units matched ({tm / max(tu, 1):.1%})."]
     (RUNS / "bootstrap").mkdir(parents=True, exist_ok=True)
-    (RUNS / "bootstrap" / "report.md").write_text("\n".join(rep) + "\n", encoding="utf-8", newline="\n")
+    name = "report_selftrain.md" if args.ocr else "report.md"
+    (RUNS / "bootstrap" / name).write_text("\n".join(rep) + "\n", encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

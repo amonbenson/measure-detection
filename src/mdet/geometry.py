@@ -60,6 +60,17 @@ def load_norm16(doc_id: str, page: int) -> np.ndarray:
     return cv2.imread(str(DERIVED / "pages" / doc_id / f"{page:03d}.png"), cv2.IMREAD_GRAYSCALE)
 
 
+def halve(g: np.ndarray) -> np.ndarray:
+    """2x2 block average with rounding; odd sizes are padded with paper (255).
+
+    Used instead of cv2.resize(INTER_AREA) because it is exactly reproducible in the browser runtime.
+    """
+    h, w = g.shape
+    p = np.full((h + h % 2, w + w % 2), 255, np.uint16)
+    p[:h, :w] = g
+    s = p[0::2, 0::2] + p[1::2, 0::2] + p[0::2, 1::2] + p[1::2, 1::2]
+    return ((s + 2) >> 2).astype(np.uint8)
+
+
 def load_norm8(doc_id: str, page: int) -> np.ndarray:
-    g = load_norm16(doc_id, page)
-    return cv2.resize(g, ((g.shape[1] + 1) // 2, (g.shape[0] + 1) // 2), interpolation=cv2.INTER_AREA)
+    return halve(load_norm16(doc_id, page))
