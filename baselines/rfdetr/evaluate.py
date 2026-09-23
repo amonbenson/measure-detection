@@ -1,7 +1,7 @@
 """Evaluate RF-DETR box predictions with the pipeline's metrics (run in the main environment).
 
-Boxes are in normalized-page pixels (s = 8). Systems: class 1 boxes (score >= 0.5, NMS). Measures:
-class 2 boxes (score >= tau, NMS), each assigned to the system with the largest vertical overlap,
+Boxes are in normalized-page pixels (s = 8). Systems: system-class boxes (score >= 0.5, NMS). Measures:
+measure-class boxes (score >= tau, NMS), each assigned to the system with the largest vertical overlap,
 sorted by x; the boundary between neighbours is the midpoint of their facing edges.
 Usage (repository root): uv run python baselines/rfdetr/evaluate.py --pred runs/rfdetr/pred_test.json --split test [--tau 0.5]
 """
@@ -17,6 +17,9 @@ from mdet.boxap import average_precision
 from mdet.data import load_document, read_split
 from mdet.evaluate import PredMeasure, PredSystem, evaluate_page, summarize
 from mdet.geometry import PageGeometry
+
+# RF-DETR's two-class head outputs 0 = system, 1 = measure (the COCO supercategory is dropped).
+SYSTEM, MEASURE = 0, 1
 
 
 def nms(boxes: list[dict], iou_thr: float) -> list[dict]:
@@ -37,8 +40,8 @@ def nms(boxes: list[dict], iou_thr: float) -> list[dict]:
 
 
 def to_systems(geo: PageGeometry, page: int, dets: list[dict], tau: float) -> list[PredSystem]:
-    sys_boxes = nms([d for d in dets if d["class_id"] == 1 and d["score"] >= 0.5], 0.5)
-    mea_boxes = nms([d for d in dets if d["class_id"] == 2 and d["score"] >= tau], 0.5)
+    sys_boxes = nms([d for d in dets if d["class_id"] == SYSTEM and d["score"] >= 0.5], 0.5)
+    mea_boxes = nms([d for d in dets if d["class_id"] == MEASURE and d["score"] >= tau], 0.5)
     groups: list[list[dict]] = [[] for _ in sys_boxes]
     for m in mea_boxes:
         ov = [max(0, min(m["box"][3], s["box"][3]) - max(m["box"][1], s["box"][1])) for s in sys_boxes]

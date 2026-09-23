@@ -35,12 +35,12 @@ const detector = await MeasureDetector.create({
   models: { measurenet: "/models/measurenet.onnx", labelocr: "/models/labelocr.onnx" },
   decoder: await (await fetch("/models/decoder.json")).json(),
 });
-const pdf = await pdfjs.getDocument(url).promise;
+const pdf = await pdfjs.getDocument({ url }).promise;
 const measures = await detector.detect(pdf, { startConvention: "system-edge" });
 // [{ layout: { page, x, y, width, height }, value: "12", quad: [[x, y], ...], confidence, ... }]
 ```
 
-The model files are in `packages/measure-detection/models/` (copy them to your static assets). Run `detect` in a Web Worker to keep the UI responsive. `startConvention` selects where the first measure of a system begins: at the system's opening line (`system-edge`, default) or after clef, key and time signature (`after-header`). Low `confidence` marks measures worth showing to the user for review.
+The model files are in `packages/measure-detection/models/` (copy them to your static assets; `manifest.json` records the dataset, split hashes, training commit and metrics of the bundle). Run `detect` in a Web Worker to keep the UI responsive. `startConvention` selects where the first measure of a system begins: at the system's opening line (`system-edge`, default) or after clef, key and time signature (`after-header`). Low `confidence` marks measures worth showing to the user for review.
 
 ## Training and evaluation
 
@@ -80,6 +80,20 @@ uv run python -m mdet.parity                    # golden outputs for the browser
 npm test -w measure-detection                   # build, parity test (Node, WASM)
 ```
 
+Browser demo (WebGPU or WASM, draws the detected measures, reports timings):
+
+```
+uv run python packages/measure-detection/demo/serve.py
+# open http://localhost:8766/packages/measure-detection/demo/index.html?pdf=/dataset/documents/<doc_id>/score.pdf
+```
+
+Box-detector baseline (RF-DETR-S, separate environment in `baselines/rfdetr/`):
+
+```
+uv run python baselines/rfdetr/make_dataset.py
+cd baselines/rfdetr && uv sync && uv run python train.py --data ../../runs/rfdetr/data --out ../../runs/rfdetr/model
+```
+
 Single PDF with the Python pipeline:
 
 ```
@@ -94,4 +108,6 @@ uv run python -m mdet.predict score.pdf --measurenet runs/measurenet/best.pt --l
 | `tools/render/` | pdf.js renderer for training data |
 | `packages/measure-detection/` | npm package (TypeScript runtime and ONNX models) |
 | `dataset/splits/`, `dataset/meta.json` | Frozen splits and per-document metadata (the only committed data) |
+| `baselines/rfdetr/` | RF-DETR box-detector baseline (own uv environment) |
+| `scripts/` | Job queue for the leave-one-show-out folds and the baseline |
 | `docs/` | Plan, conventions, audit report, results |

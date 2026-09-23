@@ -121,3 +121,21 @@ Each phase ends with a commit.
 ## 7. Tools
 
 Python 3.12 via uv. PyTorch with CUDA on the local RTX 4070. NumPy, OpenCV, SciPy, Pillow, PyMuPDF (audit only). Node 22 with `pdfjs-dist` and `@napi-rs/canvas` for rendering. `onnx` and `onnxruntime` for export checks.
+
+## 8. Changes during implementation
+
+Recorded as they happened; results in `docs/RESULTS.md`.
+
+| Change | Reason |
+|---|---|
+| Near-duplicate boxes (IoU >= 0.8) are duplicates, not only identical boxes | Repeated passages annotated twice with slightly different coordinates |
+| Per-system scan shear estimated and removed in rectification | 13 % of show A barlines were tilted relative to the staff lines |
+| MeasureNet has two start channels, one per start convention; the convention is a runtime setting | The start convention varies per document and is not visible in the image |
+| Candidate text: components are rejected only if they intersect the staff region | Range labels printed close to the staff were lost |
+| A number followed by a single letter printed with a space (`30 E`) is merged into one reading | Candidate grouping split them |
+| Each measure of a split multi-measure rest gets its own label from the range as observation | The decoder otherwise left the suffix sequence after one step |
+| Free-jump transition probability is divided by 100 plausible targets | A free jump was as cheap as a suffix step |
+| Boundary matching is order preserving; a rest-tolerant metric variant is reported beside the strict one | Hungarian matching crossed pairs inside narrow sub-measures; annotated rest splits are arbitrary |
+| OpenCV `INTER_AREA` replaced by explicit area and 2x2 resizes; TypeScript reproduces the OpenCV 5 float bilinear warp | Bit-exact parity between Python and the browser |
+| Training shapes in fixed buckets and a GPU memory cap | Variable shapes made Windows fall back to system memory (20x slower) |
+| FP16 export not done | FP32 bundle is 4.2 MB, below the 10 MB target |

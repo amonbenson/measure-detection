@@ -66,9 +66,12 @@ Box mAP by show: show A mAP50 1.00 (val and test), mAP50-95 0.99 (val) and 0.975
 | Classical (no learning; tau tuned on val), val | 71.72 % | 54.19 % | 22.03 % | not applicable |
 | Classical, test | 79.87 % | 60.89 % | 23.68 % | not applicable |
 | Main pipeline, test | 96.29 % | 94.03 % | 77.63 % | 92.17 % |
-| RF-DETR-S box detector, test | pending | pending | pending | not applicable |
+| RF-DETR-S box detector (tau 0.5 tuned on val), val | 83.08 % | 78.65 % | 61.02 % | not applicable |
+| RF-DETR-S box detector, test | 82.98 % | 76.63 % | 56.58 % | not applicable |
 
 The classical baseline shows what the learned boundary model adds: it fails on barlines touching notes, on the start boundary under the `after-header` convention, and inside multi-measure rests.
+
+RF-DETR-S (Apache-2.0, 60 epochs at 1024 px on the same train split, classes `system` and `measure`) reaches val box mAP50-95 0.872 in its own evaluation and test box mAP50 0.840 / mAP50-95 0.761 with our matcher, higher than the pipeline's 0.674 / 0.567, because it learns the annotated vertical extent (including lyrics) that the pipeline's staff-based boxes do not imitate. On the metrics that matter for the product it is far behind: system recall 95.7 %, measure F1 76.6 %, page exact 56.6 % on test. It also has no start-convention setting and no labels.
 
 ## 5. Start convention
 
