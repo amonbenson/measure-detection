@@ -1,8 +1,8 @@
 """Text candidates in the margins of a system strip. Classical only.
 
 Replaces the guideline's number-text head (MeasureNet head 2). A candidate is a group of connected
-components in the band above the top staff line or below the bottom staff line, merged when the
-horizontal gap is at most 0.6 s. Candidates are cut from the s = 16 strip for LabelOCR.
+components above the top staff line or below the bottom staff line (components that intersect the
+staff region are not text), merged when the horizontal gap is at most 0.6 s. Candidates are cut from the s = 16 strip for LabelOCR.
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ S16 = 2 * S  # staff space in the s = 16 strip
 MERGE_GAP = 0.6
 MIN_HEIGHT, MAX_HEIGHT = 0.7, 2.6  # height of the tallest glyph, in s
 MAX_WIDTH = 10.0
-STAFF_CLEARANCE = 0.25  # candidates must lie this far outside the outer staff lines, in s
+STAFF_CLEARANCE = 0.1  # components must stay this far outside the outer staff lines, in s
 
 
 @dataclass
@@ -44,29 +44,26 @@ def strip16(page16: np.ndarray, strip: Strip) -> np.ndarray:
 def text_candidates(img16: np.ndarray, strip: Strip) -> list[Candidate]:
     h, w = img16.shape
     _, bw = cv2.threshold(img16, 0, 1, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-    top = int((strip.margin - STAFF_CLEARANCE * S) * 2)
-    bot = int((strip.margin + strip.height_nom + STAFF_CLEARANCE * S) * 2)
-    out: list[Candidate] = []
-    for side, (a, b) in (("above", (0, top)), ("below", (bot, h))):
-        if b - a < 4:
+    # Staff region in s = 16 rows. Components that intersect it (stems, slurs, notes) are not text.
+    staff0 = int((strip.margin - STAFF_CLEARANCE * S) * 2)
+    staff1 = int((strip.margin + strip.height_nom + STAFF_CLEARANCE * S) * 2)
+    n, _, stats, _ = cv2.connectedComponentsWithStats(bw, connectivity=8)
+    by_side: dict[str, list[list[int]]] = {"above": [], "below": []}
+    for i in range(1, n):
+        x, y, cw, ch, area = stats[i]
+        if area < 3:
             continue
-        band = bw[a:b]
-        n, lab, stats, _ = cv2.connectedComponentsWithStats(band, connectivity=8)
-        comps = []
-        for i in range(1, n):
-            x, y, cw, ch, area = stats[i]
-            if area < 3:
-                continue
-            # Components touching the staff side of the band continue into the staff (stems, slurs).
-            if (side == "above" and y + ch >= b - a) or (side == "below" and y == 0):
-                continue
-            # Components cut by the strip's outer edge are incomplete.
-            if (side == "above" and y == 0) or (side == "below" and y + ch >= b - a):
-                continue
-            if ch > MAX_HEIGHT * S16 or cw > MAX_WIDTH * S16:
-                continue
-            comps.append([x, y + a, x + cw, y + a + ch])
-        comps.sort()
+        if y + ch > staff0 and y < staff1:
+            continue
+        # Components cut by the strip's outer edge are incomplete.
+        if y == 0 or y + ch >= h:
+            continue
+        if ch > MAX_HEIGHT * S16 or cw > MAX_WIDTH * S16:
+            continue
+        by_side["above" if y + ch <= staff0 else "below"].append([int(x), int(y), int(x + cw), int(y + ch)])
+    out: list[Candidate] = []
+    for side in ("above", "below"):
+        comps = sorted(by_side[side])
         groups: list[list[list[int]]] = []
         for c in comps:
             for g in groups:

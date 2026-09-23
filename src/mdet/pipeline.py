@@ -6,12 +6,12 @@ the classical baseline and the learned pipeline.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 
 from .evaluate import PredMeasure, PredSystem
-from .geometry import PageGeometry, load_norm8
+from .geometry import PageGeometry
 from .rectify import Strip, make_strip
 from .staves import System, detect_systems
 
@@ -21,11 +21,16 @@ class PageSystem:
     system: System
     strip: Strip
     pred: PredSystem
+    us: list[float] = field(default_factory=list)  # boundary strip columns of the predicted measures
 
 
 def page_systems(doc_id: str, page: int) -> tuple[list[PageSystem], PageGeometry, np.ndarray, np.ndarray]:
-    geo = PageGeometry.load(doc_id, page)
-    gray = load_norm8(doc_id, page)
+    return systems_for_page(PageGeometry.load(doc_id, page))
+
+
+def systems_for_page(geo: PageGeometry) -> tuple[list[PageSystem], PageGeometry, np.ndarray, np.ndarray]:
+    page = geo.page
+    gray = geo.norm8()
     if not geo.info["has_staff"]:
         return [], geo, gray, np.zeros_like(gray)
     systems, bw = detect_systems(gray)

@@ -19,6 +19,8 @@ const UNASSIGNED_COST = 6.0;
 export const NOT_A_NUMBER = 0.5;
 const EMISSION_FLOOR = 1e-3;
 const BEAM = 24;
+// A free jump can go to any label; its type probability is shared by this many plausible targets.
+const FREE_JUMP_TARGETS = 100;
 
 /** Keep readings that are numbers (drop "" and unparseable hypotheses), as mdet.labelling.read_system. */
 export function filterReadings(cands: Candidate[], hyps: [string, number][][]): Reading[] {
@@ -29,6 +31,36 @@ export function filterReadings(cands: Candidate[], hyps: [string, number][][]): 
     if (pEmpty > NOT_A_NUMBER || h.length === 0) return;
     out.push({ cand: c, hyps: h });
   });
+  return mergeSuffixes(out);
+}
+
+/** Join a number reading and a following single-letter reading printed with a space (`30 E`). */
+export function mergeSuffixes(readings: Reading[], maxGap = 1.2): Reading[] {
+  const sorted = readings.map((r, i) => [r, i] as const).sort((a, b) => a[0].cand.u0 - b[0].cand.u0 || a[1] - b[1]).map((p) => p[0]);
+  const out: Reading[] = [];
+  for (const r of sorted) {
+    const prev = out[out.length - 1];
+    const top = r.hyps[0][0];
+    if (
+      prev &&
+      top.length === 1 &&
+      /^[A-Za-z]$/.test(top) &&
+      /^\d+$/.test(prev.hyps[0][0]) &&
+      prev.cand.side === r.cand.side &&
+      r.cand.u0 - prev.cand.u1 >= 0 &&
+      r.cand.u0 - prev.cand.u1 <= maxGap * S &&
+      Math.min(prev.cand.v1, r.cand.v1) - Math.max(prev.cand.v0, r.cand.v0) > 0
+    ) {
+      const hyps: [string, number][] = [];
+      for (const [x, qx] of prev.hyps.slice(0, 3)) for (const [y, qy] of r.hyps.slice(0, 3)) hyps.push([x + y, qx * qy]);
+      hyps.sort((a, b) => b[1] - a[1]);
+      const a = prev.cand, b = r.cand;
+      out[out.length - 1] = {
+        cand: { u0: a.u0, u1: b.u1, v0: Math.min(a.v0, b.v0), v1: Math.max(a.v1, b.v1), side: a.side, nComponents: a.nComponents + b.nComponents },
+        hyps: hyps.slice(0, 5),
+      };
+    } else out.push(r);
+  }
   return out;
 }
 
@@ -145,6 +177,7 @@ const logaddexp = (a: number, b: number) => (a === -Infinity ? b : b === -Infini
 export function decodeLabels(params: DecoderParams, observations: ([string, number][] | null)[]): [string, number][] {
   const lt: Record<string, number> = {};
   for (const t of TRANSITIONS) lt[t] = Math.log(params.transitions[t]);
+  lt["free_jump"] -= Math.log(FREE_JUMP_TARGETS);
   const first = params.first_labels;
   const n = observations.length;
   if (!n) return [];

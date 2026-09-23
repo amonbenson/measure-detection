@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+from pathlib import Path
 from collections import Counter
 from functools import lru_cache
 
@@ -26,22 +28,25 @@ from scipy.optimize import linear_sum_assignment
 
 from .data import RUNS, load_document, parse_label, read_split
 from .evaluate import PredMeasure
-from .geometry import load_norm16
 from .labels import TRANSITIONS, expand_range, successors, transition_type
 from .staves import S
-from .text import crop, ocr_input, strip16, text_candidates
+from .text import Candidate, crop, ocr_input, strip16, text_candidates
 
-PARAMS_PATH = RUNS / "decoder" / "params.json"
+# Decoder parameters fitted on the training documents; MDET_DECODER selects another file (e.g. a fold).
+PARAMS_PATH = Path(os.environ.get("MDET_DECODER", RUNS / "decoder" / "params.json"))
 UNASSIGNED_COST = 6.0
 NOT_A_NUMBER = 0.5  # readings whose empty-string probability exceeds this are discarded
 EMISSION_FLOOR = 1e-3
 BEAM = 24
+# A free jump can go to any label; its type probability is shared by this many plausible targets,
+# while every other transition type has one or two targets.
+FREE_JUMP_TARGETS = 100
 
 
 # ------------------------------------------------------------------ parameters fitted on train
 
 
-def fit_params(train_docs: list[str]) -> dict:
+def fit_params(train_docs: list[str], path: Path | None = None) -> dict:
     """Transition-type probabilities and offset densities from the training documents."""
     from .bootstrap import load_numbers
 
@@ -67,8 +72,9 @@ def fit_params(train_docs: list[str]) -> dict:
         "offsets": {k: sorted(v) for k, v in offsets.items()},
         "train_docs": train_docs,
     }
-    PARAMS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PARAMS_PATH.write_text(json.dumps(params, indent=1), encoding="utf-8", newline="\n")
+    path = path or PARAMS_PATH
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(params, indent=1), encoding="utf-8", newline="\n")
     return params
 
 
@@ -94,9 +100,9 @@ def gauss_logpdf(mu: float, sigma: float, x: float) -> float:
 # ------------------------------------------------------------------ Stage 4
 
 
-def read_system(doc_id: str, page: int, ps, reader) -> list[dict]:
+def read_system(page16: np.ndarray, ps, reader) -> list[dict]:
     """Candidates of one system with their OCR hypotheses (non-numbers removed)."""
-    im16 = strip16(load_norm16(doc_id, page), ps.strip)
+    im16 = strip16(page16, ps.strip)
     cands = text_candidates(im16, ps.strip)
     hyps = reader([ocr_input(crop(im16, c)) for c in cands])
     out = []
@@ -106,6 +112,35 @@ def read_system(doc_id: str, page: int, ps, reader) -> list[dict]:
         if p_empty > NOT_A_NUMBER or not h:
             continue
         out.append({"cand": c, "hyps": h})
+    return merge_suffixes(out)
+
+
+def merge_suffixes(readings: list[dict], max_gap: float = 1.2) -> list[dict]:
+    """Join a number reading and a following single-letter reading printed with a space (`30 E`).
+
+    The candidate grouping splits them because the gap exceeds 0.6 s. Merged hypotheses are the
+    concatenations of both top-3 lists, with product probabilities.
+    """
+    readings = sorted(readings, key=lambda r: r["cand"].u0)
+    out: list[dict] = []
+    for r in readings:
+        prev = out[-1] if out else None
+        top = r["hyps"][0][0]
+        if (
+            prev is not None
+            and len(top) == 1
+            and top.isalpha()
+            and prev["hyps"][0][0].isdigit()
+            and prev["cand"].side == r["cand"].side
+            and 0 <= r["cand"].u0 - prev["cand"].u1 <= max_gap * S
+            and min(prev["cand"].v1, r["cand"].v1) - max(prev["cand"].v0, r["cand"].v0) > 0
+        ):
+            a, b = prev["cand"], r["cand"]
+            hyps = sorted(((x + y, qx * qy) for x, qx in prev["hyps"][:3] for y, qy in r["hyps"][:3]), key=lambda t: -t[1])[:5]
+            merged = Candidate(a.u0, b.u1, min(a.v0, b.v0), max(a.v1, b.v1), a.side, a.n_components + b.n_components)
+            out[-1] = {"cand": merged, "hyps": hyps}
+        else:
+            out.append(r)
     return out
 
 
@@ -177,6 +212,7 @@ def decode_labels(observations: list[list[tuple[str, float]] | None]) -> list[tu
     """
     params = load_params()
     lt = {t: math.log(p) for t, p in params["transitions"].items()}
+    lt["free_jump"] -= math.log(FREE_JUMP_TARGETS)
     first = params["first_labels"]
     n = len(observations)
     if n == 0:
@@ -262,10 +298,11 @@ def label_document(doc_id: str, per_page: list, reader_ckpt) -> None:
 
     reader = LabelReader(reader_ckpt) if isinstance(reader_ckpt, str) else reader_ckpt
     systems = []  # (pred system, page system, readings)
-    for page, preds, pss, _ in per_page:
+    for _, preds, pss, geo in per_page:
+        page16 = geo.norm16()
         for pred, ps in zip(preds, pss):
             if pred.measures:
-                systems.append((pred, ps, read_system(doc_id, page, ps, reader)))
+                systems.append((pred, ps, read_system(page16, ps, reader)))
     # Pass A: global offset densities; pass B: document-specific placement.
     assigned = [assign_system(rd, ps.us, None) for _, ps, rd in systems]
     samples = []
@@ -285,10 +322,10 @@ def label_document(doc_id: str, per_page: list, reader_ckpt) -> None:
             r = asg.get(m)
             rng = expand_range(r["hyps"][0][0]) if r else None
             if rng and r["hyps"][0][1] > 0.5 and len(rng) >= 2:
+                # The range label names every measure of the multi-measure rest.
                 parts = split_measure(pm, len(rng))
                 new_measures += parts
-                observations.append([(rng[0], r["hyps"][0][1])])
-                observations += [None] * (len(parts) - 1)
+                observations += [[(lab, r["hyps"][0][1])] for lab in rng]
                 targets += parts
             else:
                 new_measures.append(pm)

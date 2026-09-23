@@ -19,7 +19,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .data import DERIVED, DOCUMENTS, ROOT, all_document_ids, page_count
+from .data import DERIVED, DOCUMENTS, ROOT, all_document_ids
 from .normalize import apply_normalization, estimate_skew, estimate_staff_space, normalization_matrix
 
 RENDERER = ROOT / "tools" / "render" / "render.mjs"
@@ -38,11 +38,13 @@ def render(jobs: list[dict]) -> list[dict]:
     return [json.loads(line) for line in out.stdout.splitlines() if line.startswith("{")]
 
 
-def prepare_document(doc_id: str) -> list[dict]:
-    pdf = str(DOCUMENTS / doc_id / "score.pdf")
-    n = page_count(doc_id)
-    out_dir = DERIVED / "pages" / doc_id
-    out_dir.mkdir(parents=True, exist_ok=True)
+def prepare_pdf(pdf: str, doc_id: str = "") -> list[tuple[dict, np.ndarray]]:
+    """Stages 0 and 1 for a PDF in memory: [(page geometry info, normalized page at s = 16)]."""
+    import pymupdf
+
+    with pymupdf.open(pdf) as f:
+        n = len(f)
+    pdf = str(pdf)
     with tempfile.TemporaryDirectory() as tmp:
         # Pass 1: moderate resolution, estimate s.
         r1 = render([{"pdf": pdf, "page": p, "scale": PASS1_DPI / 72, "out": f"{tmp}/p1_{p}.png"} for p in range(n)])
@@ -61,7 +63,6 @@ def prepare_document(doc_id: str) -> list[dict]:
             s2 = est["s"] if has_staff else PASS2_TARGET_S * s_doc / s1[p]
             angle = estimate_skew(gray, s2) if has_staff else 0.0
             m, size = normalization_matrix(gray.shape[1], gray.shape[0], s2, angle, NORM_S)
-            cv2.imwrite(str(out_dir / f"{p:03d}.png"), apply_normalization(gray, m, size))
             info = {
                 "doc_id": doc_id,
                 "page": p,
@@ -81,9 +82,20 @@ def prepare_document(doc_id: str) -> list[dict]:
                 "norm_width": size[0],
                 "norm_height": size[1],
             }
-            (out_dir / f"{p:03d}.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
-            results.append(info)
+            results.append((info, apply_normalization(gray, m, size)))
     return results
+
+
+def prepare_document(doc_id: str) -> list[dict]:
+    out_dir = DERIVED / "pages" / doc_id
+    out_dir.mkdir(parents=True, exist_ok=True)
+    infos = []
+    for info, norm16 in prepare_pdf(str(DOCUMENTS / doc_id / "score.pdf"), doc_id):
+        p = info["page"]
+        cv2.imwrite(str(out_dir / f"{p:03d}.png"), norm16)
+        (out_dir / f"{p:03d}.json").write_text(json.dumps(info, indent=1), encoding="utf-8", newline="\n")
+        infos.append(info)
+    return infos
 
 
 def main() -> None:

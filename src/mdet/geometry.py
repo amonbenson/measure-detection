@@ -25,11 +25,22 @@ class PageGeometry:
     page: int
     info: dict
     a16: np.ndarray  # 2x3 render -> norm16
+    image16: np.ndarray | None = None  # in-memory normalized page; loaded from disk when None
 
     @classmethod
     def load(cls, doc_id: str, page: int) -> "PageGeometry":
         info = json.loads((DERIVED / "pages" / doc_id / f"{page:03d}.json").read_text(encoding="utf-8"))
         return cls(doc_id, page, info, np.array(info["norm_matrix"], np.float64))
+
+    @classmethod
+    def from_info(cls, info: dict, image16: np.ndarray) -> "PageGeometry":
+        return cls(info.get("doc_id", ""), info["page"], info, np.array(info["norm_matrix"], np.float64), image16)
+
+    def norm16(self) -> np.ndarray:
+        return self.image16 if self.image16 is not None else load_norm16(self.doc_id, self.page)
+
+    def norm8(self) -> np.ndarray:
+        return halve(self.norm16())
 
     @property
     def norm8_size(self) -> tuple[int, int]:

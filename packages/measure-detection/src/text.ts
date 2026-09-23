@@ -7,7 +7,7 @@ import { Strip } from "./rectify.js";
 const S16 = 2 * S;
 const MERGE_GAP = 0.6;
 const MIN_HEIGHT = 0.7, MAX_HEIGHT = 2.6, MAX_WIDTH = 10;
-const STAFF_CLEARANCE = 0.25;
+const STAFF_CLEARANCE = 0.1;
 
 export interface Candidate {
   u0: number;
@@ -22,26 +22,21 @@ export const candidateUc = (c: Candidate) => (c.u0 + c.u1) / 2;
 
 export function textCandidates(img16: Gray, strip: Strip): Candidate[] {
   const bw = binarize(img16);
-  const h = bw.height, w = bw.width;
-  const top = Math.trunc((strip.margin - STAFF_CLEARANCE * S) * 2);
-  const bot = Math.trunc((strip.margin + strip.heightNom + STAFF_CLEARANCE * S) * 2);
+  const h = bw.height;
+  const staff0 = Math.trunc((strip.margin - STAFF_CLEARANCE * S) * 2);
+  const staff1 = Math.trunc((strip.margin + strip.heightNom + STAFF_CLEARANCE * S) * 2);
+  const bySide: Record<"above" | "below", number[][]> = { above: [], below: [] };
+  for (const c of components(bw)) {
+    if (c.area < 3) continue;
+    if (c.y + c.h > staff0 && c.y < staff1) continue;
+    if (c.y === 0 || c.y + c.h >= h) continue;
+    if (c.h > MAX_HEIGHT * S16 || c.w > MAX_WIDTH * S16) continue;
+    bySide[c.y + c.h <= staff0 ? "above" : "below"].push([c.x, c.y, c.x + c.w, c.y + c.h]);
+  }
   const out: Candidate[] = [];
-  for (const [side, a, b] of [
-    ["above", 0, top],
-    ["below", bot, h],
-  ] as const) {
-    if (b - a < 4) continue;
-    const band = { width: w, height: b - a, data: bw.data.slice(a * w, b * w) };
-    const comps: number[][] = [];
-    for (const c of components(band)) {
-      if (c.area < 3) continue;
-      if ((side === "above" && c.y + c.h >= b - a) || (side === "below" && c.y === 0)) continue;
-      if ((side === "above" && c.y === 0) || (side === "below" && c.y + c.h >= b - a)) continue;
-      if (c.h > MAX_HEIGHT * S16 || c.w > MAX_WIDTH * S16) continue;
-      comps.push([c.x, c.y + a, c.x + c.w, c.y + a + c.h]);
-    }
+  for (const side of ["above", "below"] as const) {
     // Python sorts lists lexicographically.
-    comps.sort((p, q) => p[0] - q[0] || p[1] - q[1] || p[2] - q[2] || p[3] - q[3]);
+    const comps = bySide[side].sort((p, q) => p[0] - q[0] || p[1] - q[1] || p[2] - q[2] || p[3] - q[3]);
     const groups: number[][][] = [];
     for (const c of comps) {
       let placed = false;

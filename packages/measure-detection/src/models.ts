@@ -57,15 +57,23 @@ export function stripInput(img: Gray, strip: Strip): { data: Float32Array; h: nu
 
 const sigmoid = (v: number) => 1 / (1 + Math.exp(-v));
 
-export async function boundarySignals(models: Models, img: Gray, strip: Strip): Promise<{ start: Float32Array; barline: Float32Array; offset: Float32Array }> {
+export interface BoundarySignals {
+  startEdge: Float32Array; // start boundary, convention "system-edge"
+  startHeader: Float32Array; // start boundary, convention "after-header"
+  barline: Float32Array;
+  offset: Float32Array;
+}
+
+export async function boundarySignals(models: Models, img: Gray, strip: Strip): Promise<BoundarySignals> {
   const { data, h, w } = stripInput(img, strip);
   const out = await models.measurenet.run({ input: new ort.Tensor("float32", data, [1, 2, h, w]) });
   const y = out.output.data as Float32Array;
   const cols = w / 2, c = Math.ceil(img.width / 2);
   return {
-    start: Float32Array.from(y.subarray(0, c), sigmoid),
-    barline: Float32Array.from(y.subarray(cols, cols + c), sigmoid),
-    offset: y.slice(2 * cols, 2 * cols + c),
+    startEdge: Float32Array.from(y.subarray(0, c), sigmoid),
+    startHeader: Float32Array.from(y.subarray(cols, cols + c), sigmoid),
+    barline: Float32Array.from(y.subarray(2 * cols, 2 * cols + c), sigmoid),
+    offset: y.slice(3 * cols, 3 * cols + c),
   };
 }
 
