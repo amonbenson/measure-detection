@@ -27,6 +27,7 @@ def main() -> None:
         lr=1e-4,
         num_workers=2,
         early_stopping=False,
+        progress_bar=False,
     )
 
 

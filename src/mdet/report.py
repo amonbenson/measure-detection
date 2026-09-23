@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .data import read_meta
+from .data import SPLITS, read_meta
 from .evaluate import PageResult, summarize
 from .geometry import PageGeometry
 
@@ -51,6 +51,7 @@ def strata(results: list[PageResult]) -> dict[str, dict[str, list[PageResult]]]:
         groups["source"][m["source"]].append(r)
         groups["number position"][m["number_position"]].append(r)
         groups["alphanumeric labels"][str(m.get("has_alphanumeric_labels"))].append(r)
+        groups["start convention"][str(m.get("start_convention"))].append(r)
         skew = abs(PageGeometry.load(r.doc_id, r.page).info["deskew_deg"])
         groups["skew"]["<1 deg" if skew < 1 else ("1-3 deg" if skew <= 3 else ">3 deg")].append(r)
     return groups
@@ -77,6 +78,17 @@ def report(run_dir: Path) -> str:
     lines = [f"# Evaluation report: `{run_dir.name}`", "", f"Arguments: `{json.dumps(data['args'])}`", "", "## Overall", "", "| Metric | Value |", "|---|---|"]
     for k, v in s.items():
         lines.append(f"| {k} | {fmt(v) + ' %' if isinstance(v, float) and 'error' not in k else v} |")
+    if data.get("tolerant"):
+        st = summarize(data["tolerant"])
+        lines += ["", "Rest-tolerant variant (virtual boundaries inside multi-measure rests accepted within half a sub-measure):", "", "| Metric | Value |", "|---|---|"]
+        lines += [f"| {k} | {fmt(v) + ' %' if isinstance(v, float) and 'error' not in k else v} |" for k, v in st.items()]
+    challenge = SPLITS / "challenge.txt"
+    if challenge.exists():
+        pages = {(ln.split()[0], int(ln.split()[1])) for ln in challenge.read_text().splitlines() if ln.strip()}
+        sub = [r for r in results if (r.doc_id, r.page) in pages]
+        if sub:
+            sc = summarize(sub)
+            lines += ["", f"Challenge pages ({len(sub)}): " + ", ".join(f"{h} {fmt(sc[k])} %" for k, h in KEYS)]
     lines += ["", "Boundary errors are in staff spaces s.", "", "## Review curve", "", "| Review rate | Residual error |", "|---|---|"]
     for rate, err in review_curve(results):
         lines.append(f"| {100 * rate:.0f} % | {fmt(err)} % |")

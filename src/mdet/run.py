@@ -114,10 +114,11 @@ def main() -> None:
     ap.add_argument("--tau", type=float)
     ap.add_argument("--convention", default="document", choices=["document", "system-edge", "after-header"], help="start convention: the document's annotated one, or fixed")
     ap.add_argument("--name")
+    ap.add_argument("--docs", nargs="*", help="explicit documents instead of a split")
     ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
     name = args.name or f"{args.detector}_{args.split}"
-    summary, results, preds, tolerant = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, convention=args.convention)
+    summary, results, preds, tolerant = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, docs=args.docs, convention=args.convention)
     summary_tol = summarize(tolerant)
     out = RUNS / "eval" / name
     out.mkdir(parents=True, exist_ok=True)

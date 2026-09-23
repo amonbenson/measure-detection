@@ -238,7 +238,7 @@ def decode_labels(observations: list[list[tuple[str, float]] | None]) -> list[tu
         if observations[i]:
             cand += [s for s, _ in observations[i]]
         if i == 0:
-            cand += list(first.keys())
+            cand += sorted(first.keys())  # sorted: key order must not depend on the JSON loader
         else:
             for p in states[-1]:
                 cand += [s for s, _ in successors(p)]

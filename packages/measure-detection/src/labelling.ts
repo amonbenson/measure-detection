@@ -191,7 +191,7 @@ export function decodeLabels(params: DecoderParams, observations: ([string, numb
   for (let i = 0; i < n; i++) {
     let cand: string[] = [];
     if (observations[i]) cand.push(...observations[i]!.map(([s]) => s));
-    if (i === 0) cand.push(...Object.keys(first));
+    if (i === 0) cand.push(...Object.keys(first).sort());
     else {
       for (const p of states[i - 1]) cand.push(...successors(p));
       cand.push("1");

@@ -187,83 +187,66 @@ export function invertAffine(m: Affine): Affine {
   return [A11, A12, -A11 * c - A12 * f, A21, A22, -A21 * c - A22 * f];
 }
 
-const INTER_BITS = 5;
-const INTER_TAB = 1 << INTER_BITS;
+// OpenCV 5 samples bilinearly at float coordinates (no 1/32 quantization): source coordinates from
+// the inverse matrix, float32 interpolation, round half to even for 8-bit output, constant border.
+const f32 = Math.fround;
 
-/** Bilinear sample at fixed-point coordinates (1/32 px) as OpenCV remap, constant border. */
-function sample8(g: Gray, X: number, Y: number, border: number): number {
-  const sx = X >> INTER_BITS, sy = Y >> INTER_BITS;
-  const fx = X & (INTER_TAB - 1), fy = Y & (INTER_TAB - 1);
-  const w = g.width, h = g.height;
-  if (sx >= w || sx + 1 < 0 || sy >= h || sy + 1 < 0) return border;
-  const px = (x: number, y: number) => (x >= 0 && x < w && y >= 0 && y < h ? g.data[y * w + x] : border);
-  // Weights in units of 1/1024 (products of 1/32 steps), scaled to 32768 exactly.
-  const w00 = (INTER_TAB - fx) * (INTER_TAB - fy) * 32, w01 = fx * (INTER_TAB - fy) * 32;
-  const w10 = (INTER_TAB - fx) * fy * 32, w11 = fx * fy * 32;
-  const v = px(sx, sy) * w00 + px(sx + 1, sy) * w01 + px(sx, sy + 1) * w10 + px(sx + 1, sy + 1) * w11;
-  return Math.min(255, Math.max(0, (v + (1 << 14)) >> 15));
+function bilinear(get: (x: number, y: number) => number, w: number, h: number, x: number, y: number, border: number): number | null {
+  const X = f32(x), Y = f32(y);
+  const sx = Math.floor(X), sy = Math.floor(Y);
+  if (sx >= w || sx < -1 || sy >= h || sy < -1) return null;
+  const fx = f32(X - sx), fy = f32(Y - sy);
+  const px = (xx: number, yy: number) => (xx >= 0 && xx < w && yy >= 0 && yy < h ? get(xx, yy) : border);
+  const v00 = px(sx, sy), v01 = px(sx + 1, sy), v10 = px(sx, sy + 1), v11 = px(sx + 1, sy + 1);
+  const a = f32(v00 + f32(f32(v01 - v00) * fx));
+  const b = f32(v10 + f32(f32(v11 - v10) * fx));
+  return f32(a + f32(f32(b - a) * fy));
 }
 
-function sampleF(g: FloatImage, X: number, Y: number): number {
-  const sx = X >> INTER_BITS, sy = Y >> INTER_BITS;
-  const fx = (X & (INTER_TAB - 1)) / INTER_TAB, fy = (Y & (INTER_TAB - 1)) / INTER_TAB;
-  const w = g.width, h = g.height;
-  if (sx >= w || sx + 1 < 0 || sy >= h || sy + 1 < 0) return 0;
-  const px = (x: number, y: number) => (x >= 0 && x < w && y >= 0 && y < h ? g.data[y * w + x] : 0);
-  return px(sx, sy) * (1 - fx) * (1 - fy) + px(sx + 1, sy) * fx * (1 - fy) + px(sx, sy + 1) * (1 - fx) * fy + px(sx + 1, sy + 1) * fx * fy;
-}
-
-/** Fixed-point source coordinates of cv2.warpAffine for output pixel (x, y) given the inverse map. */
-function warpCoords(inv: Affine, width: number): { rowX: (y: number) => number; rowY: (y: number) => number; adx: Int32Array; bdx: Int32Array } {
-  const AB_BITS = 10, AB_SCALE = 1 << AB_BITS, roundDelta = AB_SCALE / INTER_TAB / 2;
-  const adx = new Int32Array(width), bdx = new Int32Array(width);
-  for (let x = 0; x < width; x++) {
-    adx[x] = roundHalfEven(inv[0] * x * AB_SCALE);
-    bdx[x] = roundHalfEven(inv[3] * x * AB_SCALE);
-  }
-  return {
-    rowX: (y) => roundHalfEven((inv[1] * y + inv[2]) * AB_SCALE) + roundDelta,
-    rowY: (y) => roundHalfEven((inv[4] * y + inv[5]) * AB_SCALE) + roundDelta,
-    adx,
-    bdx,
-  };
+function sample8(g: Gray, x: number, y: number, border: number): number {
+  const v = bilinear((xx, yy) => g.data[yy * g.width + xx], g.width, g.height, x, y, border);
+  return v === null ? border : Math.min(255, Math.max(0, roundHalfEven(v)));
 }
 
 /** cv2.warpAffine(INTER_LINEAR, BORDER_CONSTANT) of an 8-bit image. m maps source to destination. */
 export function warpAffine(g: Gray, m: Affine, width: number, height: number, border = 255): Gray {
   const inv = invertAffine(m);
-  const { rowX, rowY, adx, bdx } = warpCoords(inv, width);
   const out = new Uint8Array(width * height);
-  const shift = 10 - INTER_BITS;
-  for (let y = 0; y < height; y++) {
-    const X0 = rowX(y), Y0 = rowY(y);
-    for (let x = 0; x < width; x++) out[y * width + x] = sample8(g, (X0 + adx[x]) >> shift, (Y0 + bdx[x]) >> shift, border);
-  }
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) out[y * width + x] = sample8(g, inv[0] * x + inv[1] * y + inv[2], inv[3] * x + inv[4] * y + inv[5], border);
   return { width, height, data: out };
 }
 
-/** cv2.warpAffine of a float image with border 0. If inverse is true, m already maps destination to source. */
+/** cv2.warpAffine of a float image with border 0. If inverse is true, m already maps destination to source.
+ *  Inlined version of sampleF (same float32 operation order) because skew and shear estimation call it often. */
 export function warpAffineF(g: FloatImage, m: Affine, width: number, height: number, inverse = false): FloatImage {
   const inv = inverse ? m : invertAffine(m);
-  const { rowX, rowY, adx, bdx } = warpCoords(inv, width);
   const out = new Float32Array(width * height);
-  const shift = 10 - INTER_BITS;
-  for (let y = 0; y < height; y++) {
-    const X0 = rowX(y), Y0 = rowY(y);
-    for (let x = 0; x < width; x++) out[y * width + x] = sampleF(g, (X0 + adx[x]) >> shift, (Y0 + bdx[x]) >> shift);
-  }
+  const w = g.width, h = g.height, d = g.data;
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const X = f32(inv[0] * x + inv[1] * y + inv[2]), Y = f32(inv[3] * x + inv[4] * y + inv[5]);
+      const sx = Math.floor(X), sy = Math.floor(Y);
+      if (sx >= w || sx < -1 || sy >= h || sy < -1) continue;
+      const fx = f32(X - sx), fy = f32(Y - sy);
+      const inX0 = sx >= 0, inX1 = sx + 1 < w, inY0 = sy >= 0, inY1 = sy + 1 < h;
+      const r0 = sy * w, r1 = r0 + w;
+      const v00 = inX0 && inY0 ? d[r0 + sx] : 0, v01 = inX1 && inY0 ? d[r0 + sx + 1] : 0;
+      const v10 = inX0 && inY1 ? d[r1 + sx] : 0, v11 = inX1 && inY1 ? d[r1 + sx + 1] : 0;
+      const a = f32(v00 + f32(f32(v01 - v00) * fx));
+      const b = f32(v10 + f32(f32(v11 - v10) * fx));
+      out[y * width + x] = f32(a + f32(f32(b - a) * fy));
+    }
   return { width, height, data: out };
 }
 
-/** cv2.remap(INTER_LINEAR, BORDER_CONSTANT) with float maps given as a function of (x, y). */
+/** cv2.remap(INTER_LINEAR, BORDER_CONSTANT) with float32 maps given as a function of (x, y). */
 export function remap(g: Gray, width: number, height: number, map: (x: number, y: number) => [number, number], border = 255): Gray {
   const out = new Uint8Array(width * height);
   for (let y = 0; y < height; y++)
     for (let x = 0; x < width; x++) {
       const [sx, sy] = map(x, y);
-      // OpenCV converts float maps to fixed point with cvRound(v * 32) after a float32 cast.
-      const X = roundHalfEven(Math.fround(sx) * INTER_TAB), Y = roundHalfEven(Math.fround(sy) * INTER_TAB);
-      out[y * width + x] = sample8(g, X, Y, border);
+      out[y * width + x] = sample8(g, sx, sy, border);
     }
   return { width, height, data: out };
 }

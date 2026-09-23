@@ -2,6 +2,7 @@
 # Sequential GPU jobs after the main models: leave-one-show-out folds, then the RF-DETR baseline.
 # One job at a time (see AGENTS.md: concurrent trainings exceed GPU memory).
 set -euo pipefail
+export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 cd "$(dirname "$0")/.."
 
 docs() { # docs <show> <split...>: document ids of a show in the given splits
