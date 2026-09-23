@@ -13,6 +13,7 @@
   .page svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   polygon { fill: #2563eb14; stroke: #2563eb; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
   polygon.low { fill: #dc26261a; stroke: #dc2626; }
+  polygon.pending { fill: #6b728014; stroke: #6b7280; stroke-dasharray: 4 3; }
   text { font: 600 11px system-ui, sans-serif; fill: #1d4ed8; paint-order: stroke; stroke: #fff; stroke-width: 3px; }
   text.low { fill: #b91c1c; }
 </style>
@@ -79,23 +80,27 @@ async function showPages(pdf) {
   return layers;
 }
 
-function drawMeasures(layers, measures) {
+// Replace the overlay of one page. Pending (unlabeled) measures are drawn dashed and without a label.
+function drawPage(layer, measures, pending) {
+  const { svg, aspect } = layer;
+  svg.replaceChildren();
+  const h = 1000 * aspect;
   for (const m of measures) {
-    const { svg, aspect } = layers[m.layout.page];
-    const h = 1000 * aspect;
-    const low = m.confidence < LOW_CONFIDENCE ? "low" : "";
+    const cls = pending ? "pending" : m.confidence < LOW_CONFIDENCE ? "low" : "";
     const poly = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
     poly.setAttribute("points", m.quad.map(([x, y]) => `${x * 1000},${y * h}`).join(" "));
-    poly.setAttribute("class", low);
+    poly.setAttribute("class", cls);
     const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-    title.textContent = `Measure ${m.value}, confidence ${m.confidence.toFixed(2)}`;
+    title.textContent = pending ? "Measure (label pending)" : `Measure ${m.value}, confidence ${m.confidence.toFixed(2)}`;
     poly.append(title);
+    svg.append(poly);
+    if (pending) continue;
     const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
     text.setAttribute("x", m.quad[0][0] * 1000 + 3);
     text.setAttribute("y", m.quad[0][1] * h - 3);
-    text.setAttribute("class", low);
+    text.setAttribute("class", cls);
     text.textContent = m.value;
-    svg.append(poly, text);
+    svg.append(text);
   }
 }
 
@@ -114,13 +119,14 @@ $("file").addEventListener("change", async () => {
     const weights = { scan: [0, 0.2], detect: [0.2, 0.75], label: [0.95, 0.05] };
     const measures = await det.detect(pdf, {
       startConvention: $("conv").value,
+      onPageMeasures: (page, pageMeasures) => drawPage(layers[page], pageMeasures, true),
       onProgress: (done, total, stage) => {
         const [start, share] = weights[stage];
         $("bar").value = start + share * (done / total);
         status(stage === "label" ? names.label + "..." : `${names[stage]}: page ${done} of ${total}`);
       },
     });
-    drawMeasures(layers, measures);
+    layers.forEach((layer, p) => drawPage(layer, measures.filter((m) => m.layout.page === p), false));
     $("bar").value = 1;
     const low = measures.filter((m) => m.confidence < LOW_CONFIDENCE).length;
     status(`${measures.length} measures on ${pdf.numPages} pages in ${((performance.now() - t0) / 1000).toFixed(1)} s (${det.provider}); ${low} marked red for review.`);

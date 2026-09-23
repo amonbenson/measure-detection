@@ -36,6 +36,9 @@ export interface DetectOptions extends PipelineOptions {
   /** Progress per stage: "scan" (staff space of every page), "detect" (measures per page),
    *  "label" (reading and decoding measure numbers for the whole document). */
   onProgress?: (done: number, total: number, stage: ProgressStage) => void;
+  /** Called when a page is detected, with its measures before labelling (value ""). Boxes can change
+   *  once more at the end: a multi-measure rest is split into its measures when its range label is read. */
+  onPageMeasures?: (page: number, measures: MeasureResult[]) => void;
 }
 
 export class MeasureDetector {
@@ -56,7 +59,9 @@ export class MeasureDetector {
     const pages = [];
     for (let p = 0; p < pdf.numPages; p++) {
       const page = await preparePage(pdf, p, s1[p], sDoc, canvas);
-      pages.push({ page, systems: await detectPage(this.models, page, opts) });
+      const systems = await detectPage(this.models, page, opts);
+      pages.push({ page, systems });
+      opts.onPageMeasures?.(p, systems.flatMap((sy) => sy.measures).map(toResult));
       opts.onProgress?.(p + 1, pdf.numPages, "detect");
     }
     opts.onProgress?.(0, 1, "label");
