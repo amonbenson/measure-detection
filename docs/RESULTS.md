@@ -124,7 +124,7 @@ Confidence flags label errors well but not boundary errors inside multi-measure 
 | Check | Result |
 |---|---|
 | Unit parity (image primitives, staff space, CTC beam search, decoder; `npm test`) | all exact (float32 warps within 4e-6) |
-| Pipeline parity, 68 test pages, WASM in Node | 66 of 68 pages identical within 0.2 s; measure counts and labels identical on all 649 measures; 2 pages differ at one boundary (0.23 s, 0.48 s) |
+| Pipeline parity, 76 test pages (both start conventions), WASM in Node | 74 of 76 pages identical within 0.2 s; measure counts and labels identical on all 829 measures; 2 pages differed at one boundary (0.23 s, 0.48 s), traced to a near-tie in the shear search. A tie tolerance was added afterwards in both implementations; the parity re-run after that fix was not completed |
 | Models on WebGPU (Chromium, RTX 4070) | MeasureNet 12 ms per system (448 x 1280), LabelOCR 5 ms per 20 crops |
 | Models on WASM (Chromium) | MeasureNet 794 ms per system, LabelOCR 197 ms per 20 crops |
 | Classical stages (V8, Node, one A4 scan page) | about 1.5 s (skew 0.4 s, shear 0.5 s, systems, rectification, text candidates) |
