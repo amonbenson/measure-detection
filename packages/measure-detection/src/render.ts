@@ -1,53 +1,52 @@
 // Stages 0 and 1 for a PDF: two-pass rendering with pdfjs-dist, staff space, deskew (mdet/prepare.py).
 
 import type { PDFDocumentProxy } from "pdfjs-dist";
-import { Affine, Gray, halve } from "./image.js";
-import { applyNormalization, estimateSkew, estimateStaffSpace, normalizationMatrix } from "./normalize.js";
+import { Gray } from "./image.js";
+import { estimateStaffSpace } from "./normalize.js";
+import { median, MIN_MODE_STRENGTH, normalizePage, PASS1_DPI, PASS2_TARGET_S, PreparedPage, toGray } from "./stages.js";
 
-export const PASS1_DPI = 150;
-export const PASS2_TARGET_S = 18;
-export const NORM_S = 16;
-export const MIN_MODE_STRENGTH = 0.05;
+export { MIN_MODE_STRENGTH, NORM_S, PASS1_DPI, PASS2_TARGET_S } from "./stages.js";
+export type { PreparedPage } from "./stages.js";
 
 /** Minimal canvas interface (OffscreenCanvas in browsers, @napi-rs/canvas in Node). */
 export interface CanvasLike {
+  width: number;
+  height: number;
   getContext(type: "2d"): any;
 }
 export type CanvasFactory = (width: number, height: number) => CanvasLike;
 
 export const browserCanvas: CanvasFactory = (w, h) => new OffscreenCanvas(w, h) as unknown as CanvasLike;
 
-export interface PreparedPage {
-  page: number;
-  norm16: Gray;
-  norm8: Gray;
-  renderWidth: number;
-  renderHeight: number;
-  sRender: number;
-  deskewDeg: number;
-  hasStaff: boolean;
-  matrix: Affine; // render pixels -> norm16 pixels
+export interface Rgba {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+/** Render one page on a white background; returns the RGBA pixels. */
+export async function renderRgba(pdf: PDFDocumentProxy, pageIndex: number, scale: number, canvas: CanvasFactory): Promise<Rgba> {
+  const page = await pdf.getPage(pageIndex + 1);
+  try {
+    const viewport = page.getViewport({ scale });
+    const width = Math.round(viewport.width), height = Math.round(viewport.height);
+    const c = canvas(width, height);
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    await page.render({ canvasContext: ctx, canvas: c, viewport } as any).promise;
+    const data: Uint8ClampedArray = ctx.getImageData(0, 0, width, height).data;
+    // Release the canvas backing store now instead of at the next garbage collection.
+    c.width = c.height = 0;
+    return { width, height, data };
+  } finally {
+    page.cleanup();
+  }
 }
 
 export async function renderGray(pdf: PDFDocumentProxy, pageIndex: number, scale: number, canvas: CanvasFactory): Promise<Gray> {
-  const page = await pdf.getPage(pageIndex + 1);
-  const viewport = page.getViewport({ scale });
-  const width = Math.round(viewport.width), height = Math.round(viewport.height);
-  const c = canvas(width, height);
-  const ctx = c.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, width, height);
-  await page.render({ canvasContext: ctx, canvas: c, viewport } as any).promise;
-  const rgba: Uint8ClampedArray = ctx.getImageData(0, 0, width, height).data;
-  const data = new Uint8Array(width * height);
-  for (let i = 0, j = 0; i < rgba.length; i += 4, j++) data[j] = Math.round(0.299 * rgba[i] + 0.587 * rgba[i + 1] + 0.114 * rgba[i + 2]);
-  page.cleanup();
-  return { width, height, data };
-}
-
-function median(v: number[]): number {
-  const s = [...v].sort((a, b) => a - b), k = s.length >> 1;
-  return s.length % 2 ? s[k] : (s[k - 1] + s[k]) / 2;
+  const r = await renderRgba(pdf, pageIndex, scale, canvas);
+  return toGray(r.data, r.width, r.height);
 }
 
 /** Pass 1 for every page: staff space at moderate resolution. */
@@ -66,11 +65,5 @@ export async function pass1(pdf: PDFDocumentProxy, canvas: CanvasFactory, onPage
 export async function preparePage(pdf: PDFDocumentProxy, p: number, s1: number, sDoc: number, canvas: CanvasFactory): Promise<PreparedPage> {
   const scale = ((PASS1_DPI / 72) * PASS2_TARGET_S) / s1;
   const g = await renderGray(pdf, p, scale, canvas);
-  const est = estimateStaffSpace(g);
-  const hasStaff = est.modeStrength >= MIN_MODE_STRENGTH;
-  const s2 = hasStaff ? est.s : (PASS2_TARGET_S * sDoc) / s1;
-  const angle = hasStaff ? estimateSkew(g, s2) : 0;
-  const { m, width, height } = normalizationMatrix(g.width, g.height, s2, angle, NORM_S);
-  const norm16 = applyNormalization(g, m, width, height);
-  return { page: p, norm16, norm8: halve(norm16), renderWidth: g.width, renderHeight: g.height, sRender: s2, deskewDeg: angle, hasStaff, matrix: m };
+  return normalizePage(g, p, estimateStaffSpace(g), s1, sDoc);
 }

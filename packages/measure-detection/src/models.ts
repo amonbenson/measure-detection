@@ -2,11 +2,12 @@
 
 import * as ort from "onnxruntime-web";
 import { Gray } from "./image.js";
+import { StripInput, stripInput } from "./input.js";
 import { CHARSET, beamSearch } from "./ocr.js";
 import { Strip } from "./rectify.js";
+import { Signals } from "./stages.js";
 
-export const HEIGHT_BUCKETS = [192, 320, 448, 576, 704, 832];
-export const TRAIN_WIDTH = 1216;
+export { HEIGHT_BUCKETS, TRAIN_WIDTH, paddedShape, stripInput } from "./input.js";
 
 export interface ModelSources {
   measurenet: string | ArrayBuffer | Uint8Array;
@@ -17,16 +18,53 @@ export interface Models {
   measurenet: ort.InferenceSession;
   labelocr: ort.InferenceSession;
   provider: string;
+  /** Runs model calls one at a time: an InferenceSession must not run concurrently. */
+  serial: <T>(fn: () => Promise<T>) => Promise<T>;
 }
 
-export async function loadModels(src: ModelSources, providers: string[] = ["webgpu", "wasm"]): Promise<Models> {
+export function mutex(): <T>(fn: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return <T>(fn: () => Promise<T>) => {
+    const run = tail.then(fn, fn);
+    tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  };
+}
+
+async function hasWebGpu(): Promise<boolean> {
+  const gpu = typeof navigator !== "undefined" ? (navigator as any).gpu : undefined;
+  if (!gpu) return false;
+  try {
+    return !!(await gpu.requestAdapter());
+  } catch {
+    return false;
+  }
+}
+
+export interface LoadOptions {
+  /** Execution providers in order of preference. Default: WebGPU if the browser has an adapter, else WASM. */
+  providers?: string[];
+  /** Run WASM inference in onnxruntime's own worker so it does not block the page (browsers only).
+   *  Default: true when WASM is the first provider. */
+  wasmProxy?: boolean;
+}
+
+export async function loadModels(src: ModelSources, opts: LoadOptions | string[] = {}): Promise<Models> {
+  const o: LoadOptions = Array.isArray(opts) ? { providers: opts } : opts;
+  const providers = o.providers ?? ((await hasWebGpu()) ? ["webgpu", "wasm"] : ["wasm"]);
+  // The proxy must be set before onnxruntime initializes its WASM backend, and it is not available with WebGPU.
+  const inBrowser = typeof window !== "undefined" && typeof Worker !== "undefined";
+  if (providers[0] === "wasm" && inBrowser && (o.wasmProxy ?? true)) ort.env.wasm.proxy = true;
   let lastError: unknown;
   for (const provider of providers) {
     try {
       const opts: ort.InferenceSession.SessionOptions = { executionProviders: [provider] };
       const measurenet = await ort.InferenceSession.create(src.measurenet as any, opts);
       const labelocr = await ort.InferenceSession.create(src.labelocr as any, opts);
-      return { measurenet, labelocr, provider };
+      return { measurenet, labelocr, provider, serial: mutex() };
     } catch (e) {
       lastError = e;
     }
@@ -34,40 +72,16 @@ export async function loadModels(src: ModelSources, providers: string[] = ["webg
   throw lastError;
 }
 
-function pyRound(x: number): number {
-  return Math.abs(x % 1) === 0.5 ? 2 * Math.round(x / 2) : Math.round(x);
-}
-
-export function paddedShape(h: number, w: number): [number, number] {
-  const hb = HEIGHT_BUCKETS.find((b) => b >= h) ?? Math.ceil(h / 128) * 128;
-  return [hb, Math.max(TRAIN_WIDTH, Math.ceil(w / 128) * 128)];
-}
-
-/** MeasureNet input (2, H, W): ink and staff-band mask, zero padded to a shape bucket. */
-export function stripInput(img: Gray, strip: Strip): { data: Float32Array; h: number; w: number } {
-  const [hb, wb] = paddedShape(img.height, img.width);
-  const data = new Float32Array(2 * hb * wb);
-  for (let y = 0; y < img.height; y++) for (let x = 0; x < img.width; x++) data[y * wb + x] = 1 - img.data[y * img.width + x] / 255;
-  for (const [vt, vb] of strip.staffBands) {
-    const a = Math.max(0, pyRound(vt)), b = Math.min(img.height, pyRound(vb) + 1);
-    for (let y = a; y < b; y++) data.fill(1, hb * wb + y * wb, hb * wb + y * wb + img.width);
-  }
-  return { data, h: hb, w: wb };
-}
-
 const sigmoid = (v: number) => 1 / (1 + Math.exp(-v));
 
-export interface BoundarySignals {
-  start: Float32Array; // start boundary (after clef, key and time signature)
-  barline: Float32Array;
-  offset: Float32Array;
-}
+export type BoundarySignals = Signals;
 
-export async function boundarySignals(models: Models, img: Gray, strip: Strip): Promise<BoundarySignals> {
-  const { data, h, w } = stripInput(img, strip);
-  const out = await models.measurenet.run({ input: new ort.Tensor("float32", data, [1, 2, h, w]) });
+/** MeasureNet on a prepared input; `width` is the rectified strip width (the input is padded beyond it). */
+export async function measureNetSignals(models: Models, input: StripInput, width: number): Promise<BoundarySignals> {
+  const { data, h, w } = input;
+  const out = await models.serial(() => models.measurenet.run({ input: new ort.Tensor("float32", data, [1, 2, h, w]) }));
   const y = out.output.data as Float32Array;
-  const cols = w / 2, c = Math.ceil(img.width / 2);
+  const cols = w / 2, c = Math.ceil(width / 2);
   // Bundles before the single start convention have 4 channels (start at the system edge, start after
   // the header, barline, offset); their after-header start channel is the one used now.
   const k = out.output.dims[1] === 4 ? 1 : 0;
@@ -78,11 +92,15 @@ export async function boundarySignals(models: Models, img: Gray, strip: Strip): 
   };
 }
 
+export async function boundarySignals(models: Models, img: Gray, strip: Strip): Promise<BoundarySignals> {
+  return measureNetSignals(models, stripInput(img, strip), img.width);
+}
+
 export async function readLabels(models: Models, inputs: Float32Array[]): Promise<[string, number][][]> {
   if (!inputs.length) return [];
   const batch = new Float32Array(inputs.length * 32 * 128);
   inputs.forEach((x, i) => batch.set(x, i * 32 * 128));
-  const out = await models.labelocr.run({ input: new ort.Tensor("float32", batch, [inputs.length, 1, 32, 128]) });
+  const out = await models.serial(() => models.labelocr.run({ input: new ort.Tensor("float32", batch, [inputs.length, 1, 32, 128]) }));
   const lp = out.output.data as Float32Array;
   const T = 32, C = CHARSET.length + 1;
   return inputs.map((_, i) => beamSearch(lp.subarray(i * T * C, (i + 1) * T * C), T, C));

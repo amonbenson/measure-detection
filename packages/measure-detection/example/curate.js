@@ -1028,8 +1028,8 @@ async function detectSong(song) {
     const det = await getDetector();
     const n = end - start + 1;
     const pages = { numPages: n, getPage: (k) => pdf.getPage(start + k) };
-    const names = { scan: "scanning", detect: "detecting", label: "reading numbers" };
-    const weights = { scan: [0, 0.2], detect: [0.2, 0.75], label: [0.95, 0.05] };
+    const names = { detect: "detecting", label: "reading numbers" };
+    const weights = { detect: [0, 0.95], label: [0.95, 0.05] };
     const t0 = performance.now();
     const results = await det.detect(pages, {
       onPageMeasures: (k, ms) => {
@@ -1057,7 +1057,9 @@ async function detectSong(song) {
     }
     touch(song);
     $("bar").value = 1;
-    status(`${label}: ${results.length} measures on ${n} pages in ${((performance.now() - t0) / 1000).toFixed(1)} s (${det.provider}).`);
+    const proc = await det.processing();
+    const where = proc.kind === "workers" ? `${proc.workers} workers` : "no workers";
+    status(`${label}: ${results.length} measures on ${n} pages in ${((performance.now() - t0) / 1000).toFixed(1)} s (${det.provider}, ${where}${crossOriginIsolated ? ", isolated" : ""}).`);
   } finally {
     for (let p = start; p <= end; p++) pending.delete(p);
     running.delete(song);

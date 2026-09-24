@@ -53,6 +53,8 @@ Test numbers are not directly comparable with run 1: the start boundaries of 7 o
 
 Unit parity (`npm test`, test vectors regenerated for the new decoder parameters): all exact. Pipeline parity on 68 test pages (WASM in Node): 65 pages identical within 0.2 s; on 3 pages one boundary differs (0.22, 0.36 and 0.44 s, one of them a start boundary, whose peak is flat because no line marks it). Run 1: 74 of 76 pages, one boundary each. The runtime also accepts run 1 bundles (4 outputs) and then reads their after-header start channel.
 
+Runtime speed-up (no change in results): the image processing runs in a pool of Web Workers (streaming, at most workers + 1 pages in memory), and WASM inference runs in onnxruntime's proxy worker, multithreaded on cross-origin isolated pages. Checks: parity on `jtmrafex42858ea` identical to before the change (same 20 of 22 pages, same two differences); workers and in-thread processing bit-identical on sample pages (Chromium). Measured in Chromium on a 16-core machine: 8 pages of the CPU stages 16.5 s in-thread, 5.9 s with 4 workers; MeasureNet on WASM 78 ms per system with 4 threads (run 1: 794 ms single-threaded). End-to-end page latency in a visible browser tab was not measured (the browser pane used here was hidden, and pdf.js does not render in hidden pages).
+
 ### Next steps
 
 1. Check how the new shows annotate double barlines and start-repeat signs (one boundary on the thick line, as in show A, or elsewhere). A different convention there would explain the doubled boundaries on `y06pppp8wchggg0`; validate any fix on val.

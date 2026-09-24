@@ -41,7 +41,16 @@ const measures = await detector.detect(pdf);
 // [{ layout: { page, x, y, width, height }, value: "12", quad: [[x, y], ...], confidence, ... }]
 ```
 
-The model files are in `packages/measure-detection/models/` (copy them to your static assets; `manifest.json` records the dataset, split hashes, training commit and metrics of the bundle). Run `detect` in a Web Worker to keep the UI responsive. The first measure of a system starts after clef, key and time signature, in the space before the first note or rest. Low `confidence` marks measures worth showing to the user for review.
+The model files are in `packages/measure-detection/models/` (copy them to your static assets; `manifest.json` records the dataset, split hashes, training commit and metrics of the bundle).
+
+Performance and resources:
+
+- The image processing runs in Web Workers (`dist/worker.js`, started with `new Worker(new URL("./worker.js", import.meta.url), { type: "module" })`, which Vite and webpack bundle automatically; pass `createWorker` for other setups). Pool size: CPU cores minus one, at most 4, and 1 or 2 on devices that report 2 or 4 GB of memory (`navigator.deviceMemory`). `workers: 0` or an environment without workers (Node, strict CSP) processes pages on the calling thread with identical results. `detector.dispose()` stops the workers.
+- Pages are streamed: at most (workers + 1) pages are in memory at once, and a page's images are freed as soon as its measure numbers are read, so memory does not grow with the document length.
+- The models run on WebGPU when the browser has an adapter. Otherwise they run on WASM in onnxruntime's own worker (`wasmProxy`, default on), with several threads if the page is cross-origin isolated: serve it with `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (the example server does). Without isolation WASM runs single-threaded.
+- Browsers throttle or pause pdf.js rendering in background tabs, so detection continues when the tab is visible again.
+
+The first measure of a system starts after clef, key and time signature, in the space before the first note or rest. Low `confidence` marks measures worth showing to the user for review.
 
 ## Training and evaluation
 

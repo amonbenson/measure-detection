@@ -199,6 +199,10 @@ async function api(req, res, url) {
 
 http
   .createServer(async (req, res) => {
+    // Cross-origin isolation: onnxruntime-web runs WASM with several threads only on isolated pages.
+    // Everything here is same-origin, so require-corp blocks nothing.
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
     const url = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (url.startsWith("/api/")) {
       try {
