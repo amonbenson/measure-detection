@@ -34,8 +34,9 @@ from .rectify import rectify
 from .text import crop, strip16, text_candidates
 
 # Pass-1 search window of the candidate centre relative to the measure's left boundary, in s.
-# The first measure of a system has its own window: its number is often printed under the clef.
-WINDOW = {"first": (-3.0, 8.0), "other": (-3.0, 4.0)}
+# The first measure of a system has its own window: it starts after clef, key and time signature, and
+# its number is often printed at the system's opening line or under the clef, up to about 10 s to the left.
+WINDOW = {"first": (-12.0, 8.0), "other": (-3.0, 4.0)}
 
 
 def position(unit: dict) -> str:

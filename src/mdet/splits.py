@@ -52,18 +52,21 @@ DOC_OVERRIDES = {
 }
 
 
-def start_convention(doc_id: str) -> str | None:
-    """Annotation convention of the first measure of each system (docs/CONVENTIONS.md):
-    "system-edge" (start at the system's opening line or start-repeat barline) or
-    "after-header" (start after clef, key and time signature). Median offset of the annotated start
-    from the detected system start, threshold 3 s. None if strips are not built yet."""
+# A start boundary closer than this to the system's opening line is at the system edge, not after the header.
+EDGE_START_S = 2.0
+
+
+def edge_starts(doc_id: str) -> int | None:
+    """Data check for the start convention (docs/CONVENTIONS.md: the first measure of a system starts
+    after clef, key and time signature). Number of rows whose annotated start lies within EDGE_START_S
+    of the detected system start; None if strips are not built yet."""
     from .targets import load_samples
 
     files = sorted((DATASET / "derived" / "strips" / doc_id).glob("*.npz"))
     off = [(s["boundaries"][0] - s["strip"]["system_u0"]) / 8.0 for f in files for s in load_samples(f)]
     if not off:
         return None
-    return "after-header" if float(np.median(off)) > 3.0 else "system-edge"
+    return int(sum(o < EDGE_START_S for o in off))
 
 
 def build_meta() -> dict[str, dict]:
@@ -82,7 +85,7 @@ def build_meta() -> dict[str, dict]:
             m["has_alphanumeric_labels"] = any(not ms.label.isdigit() for ms in doc.measures)
             m["num_measures"] = len(doc.measures)
             m["num_pages"] = doc.num_pages
-            m["start_convention"] = start_convention(doc_id)
+            m["edge_starts"] = edge_starts(doc_id)
         meta[doc_id] = m
     return meta
 
@@ -145,12 +148,15 @@ def main() -> None:
         # New documents are added to train or val by the curation page, never here.
         assigned = {d for name in ("train", "val", "test") for d in read_split(name)}
         missing = sorted(d for d, m in meta.items() if m["labeled"] and d not in assigned)
-        no_conv = sorted(d for d, m in meta.items() if m["labeled"] and m.get("start_convention") is None)
+        no_strips = sorted(d for d, m in meta.items() if m["labeled"] and m.get("edge_starts") is None)
+        edge = sorted((d, m["edge_starts"]) for d, m in meta.items() if m["labeled"] and m.get("edge_starts"))
         print(f"meta.json: {len(meta)} documents, {len({m['show'] for m in meta.values()})} shows")
         if missing:
             print(f"{len(missing)} labeled documents are in no split: {' '.join(missing)}")
-        if no_conv:
-            print(f"{len(no_conv)} documents have no start convention yet (run mdet.prepare and mdet.targets first): {' '.join(no_conv)}")
+        if no_strips:
+            print(f"{len(no_strips)} documents have no strips yet (run mdet.prepare and mdet.targets first): {' '.join(no_strips)}")
+        if edge:
+            print(f"{len(edge)} documents have rows that start at the system edge instead of after the header: " + " ".join(f"{d} ({n})" for d, n in edge))
         print("splits exist; test split is frozen (use --force to recreate)")
         return
     for name, ids in build_splits(meta).items():

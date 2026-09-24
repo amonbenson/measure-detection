@@ -24,7 +24,6 @@ f8h10derj70hzdw 9 shear
 f8h10derj70hzdw 11 shear
 f8h10derj70hzdw 13 shear
 f8h10derj70hzdw 15 multi-measure-rest,shear
-jtmrafex42858ea 0 alphanumeric
 jtmrafex42858ea 2 multi-measure-rest
 jtmrafex42858ea 3 multi-measure-rest
 jtmrafex42858ea 6 multi-measure-rest

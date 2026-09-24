@@ -1,7 +1,7 @@
 """Full pipeline on a PDF: measures and labels in the training JSON schema, extended with quad and confidence.
 
 Usage: uv run python -m mdet.predict score.pdf --measurenet runs/measurenet/best.pt --labelocr runs/labelocr/best.pt
-       [--convention system-edge|after-header] [--out result.json]
+       [--out result.json]
 Output: { "pages": [{page, s, deskew_deg}], "measures": [{ "layout": {page, x, y, width, height},
            "value", "quad": [[x, y] x 4], "confidence", "boundary_confidence", "label_confidence" }] }
         with measures in reading order; s is the staff space in page-width units.
@@ -21,8 +21,8 @@ from .prepare import prepare_pdf
 from .rectify import rectify
 
 
-def predict_pdf(pdf: str, measurenet: str, labelocr: str, convention: str = "system-edge", tau_b: float | None = None) -> dict:
-    detector = MeasureNetDetector(measurenet, tau_b=tau_b, convention=convention)
+def predict_pdf(pdf: str, measurenet: str, labelocr: str, tau_b: float | None = None) -> dict:
+    detector = MeasureNetDetector(measurenet, tau_b=tau_b)
     per_page, pages = [], []
     for info, norm16 in prepare_pdf(pdf):
         geo = PageGeometry.from_info(info, norm16)
@@ -61,11 +61,10 @@ def main() -> None:
     ap.add_argument("pdf")
     ap.add_argument("--measurenet", required=True)
     ap.add_argument("--labelocr", required=True)
-    ap.add_argument("--convention", default="system-edge", choices=["system-edge", "after-header"])
     ap.add_argument("--tau", type=float)
     ap.add_argument("--out")
     args = ap.parse_args()
-    res = predict_pdf(args.pdf, args.measurenet, args.labelocr, args.convention, args.tau)
+    res = predict_pdf(args.pdf, args.measurenet, args.labelocr, args.tau)
     text = json.dumps(res, indent=1)
     if args.out:
         with open(args.out, "w", encoding="utf-8", newline="\n") as f:

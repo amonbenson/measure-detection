@@ -22,8 +22,6 @@ const MIN_SIZE = 0.004; // smallest box side, page fraction
 const LINK_TOL = 0.004; // edges closer than this are one shared boundary
 const SNAP_TOL = 0.012; // a drawn box snaps to a neighbor edge within this distance
 const DRAG_PX = 3; // pointer travel before a press becomes a drag
-// Training data uses one start convention: the first measure of a system starts after clef and key.
-const START_CONVENTION = "after-header";
 
 let pdf = null;
 // kind "book": a PDF opened from disk, split into songs, saved as a session on the server.
@@ -155,7 +153,7 @@ $("file").addEventListener("change", async () => {
     state.version = 2;
     delete state.fileName;
     delete state.show;
-    delete state.startConvention;
+    delete state.startConvention; // sessions from before the start convention was fixed
     state.showId ??= randomId();
     for (const s of state.songs) delete s.title;
     await loadDocs();
@@ -1034,7 +1032,6 @@ async function detectSong(song) {
     const weights = { scan: [0, 0.2], detect: [0.2, 0.75], label: [0.95, 0.05] };
     const t0 = performance.now();
     const results = await det.detect(pages, {
-      startConvention: START_CONVENTION,
       onPageMeasures: (k, ms) => {
         pending.set(start + k, ms.map((r) => ({ x: r.layout.x, y: r.layout.y, w: r.layout.width, h: r.layout.height })));
         if (current() === song) drawPage(start + k);

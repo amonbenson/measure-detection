@@ -10,7 +10,6 @@ import { PreparedPage } from "./render.js";
 import { detectSystems, S, System } from "./staves.js";
 import { candidateUc, crop, ocrInput, textCandidates } from "./text.js";
 
-export type StartConvention = "system-edge" | "after-header";
 export type Point = [number, number];
 
 export interface Measure {
@@ -62,14 +61,12 @@ function measuresFromBoundaries(p: PreparedPage, strip: Strip, us: number[], con
 }
 
 export interface PipelineOptions {
-  startConvention?: StartConvention;
   tauB?: number;
 }
 
 /** Stages 2 and 3 for one prepared page. */
 export async function detectPage(models: Models, p: PreparedPage, opts: PipelineOptions = {}): Promise<PageSystem[]> {
   if (!p.hasStaff) return [];
-  const conv = opts.startConvention ?? "system-edge";
   const tauB = opts.tauB ?? 0.4;
   const { systems } = detectSystems(p.norm8);
   const out: PageSystem[] = [];
@@ -77,7 +74,7 @@ export async function detectPage(models: Models, p: PreparedPage, opts: Pipeline
     const strip = makeStrip(sy, p.norm8.width, p.norm8);
     const img = rectify(p.norm8, strip);
     const sig = await boundarySignals(models, img, strip);
-    const bnd = decode(conv === "system-edge" ? sig.startEdge : sig.startHeader, sig.barline, sig.offset, 2, tauB);
+    const bnd = decode(sig.start, sig.barline, sig.offset, 2, tauB);
     const us = bnd.map((b) => b[0]);
     out.push({ system: sy, strip, us, measures: measuresFromBoundaries(p, strip, us, bnd.map((b) => b[1])) });
   }

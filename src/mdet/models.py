@@ -36,9 +36,9 @@ class MeasureNet(nn.Module):
     """Boundary column model (guideline section 4.5, head 1).
 
     Input: (B, 2, H, W) strip at s = 8: channel 0 ink (1 = black), channel 1 staff-band mask.
-    Output: (B, 4, W / 2) per column pair: logits of `start_edge` and `start_header` (the start
-    boundary under the two annotation conventions, docs/CONVENTIONS.md), logit of `barline`, and the
-    sub-column offset in [0, 1) (units of 2 px).
+    Output: (B, 3, W / 2) per column pair: logit of `start` (the start boundary, after clef, key and
+    time signature, docs/CONVENTIONS.md), logit of `barline`, and the sub-column offset in [0, 1)
+    (units of 2 px).
     """
 
     def __init__(self, width: int = 64, head: int = 96, heads: int = 4):
@@ -53,8 +53,8 @@ class MeasureNet(nn.Module):
         self.tcn = nn.ModuleList()
         for d in (1, 2, 4, 8, 16, 32):
             self.tcn.append(nn.Sequential(nn.Conv1d(head, head, 3, padding=d, dilation=d, bias=False), nn.BatchNorm1d(head), nn.ReLU(inplace=True)))
-        self.out = nn.Conv1d(head, 4, 1)
-        nn.init.constant_(self.out.bias[:3], -4.0)  # focal-loss prior
+        self.out = nn.Conv1d(head, 3, 1)
+        nn.init.constant_(self.out.bias[:2], -4.0)  # focal-loss prior
 
     def forward(self, x):
         f = self.down3(self.down2(self.stem(x)))  # (B, C, H/8, W/2)
@@ -66,7 +66,7 @@ class MeasureNet(nn.Module):
         for layer in self.tcn:
             z = z + layer(z)
         y = self.out(z)
-        return torch.cat([y[:, :3], torch.sigmoid(y[:, 3:])], dim=1)
+        return torch.cat([y[:, :2], torch.sigmoid(y[:, 2:])], dim=1)
 
 
 class LabelOCR(nn.Module):

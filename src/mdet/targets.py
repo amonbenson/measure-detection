@@ -79,7 +79,7 @@ def build_page(doc_id: str, page: int, rows) -> tuple[list[dict], dict]:
             is_line = r >= LINE_MIN_RESPONSE
             positions.append(float(u))
             if k == 0:
-                # Start boundary: convention-dependent, not always a line. Never virtual.
+                # Start boundary: after clef, key and time signature, usually not a line. Never virtual.
                 virtual.append(False)
                 continue
             stats["boundaries"] += 1

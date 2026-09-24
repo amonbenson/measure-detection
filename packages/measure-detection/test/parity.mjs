@@ -1,7 +1,7 @@
 // Parity test (guideline 8.5): the TypeScript pipeline must reproduce the Python reference.
 //
 // Golden outputs are produced by `uv run python -m mdet.parity` (repository root) and listed in
-// $MDET_PARITY_DIR/index.json: [{ "pdf": "...", "golden": "...", "convention": "system-edge" }].
+// $MDET_PARITY_DIR/index.json: [{ "pdf": "...", "golden": "..." }].
 // Requirement: same number of measures per page, boundaries within 0.2 s, identical labels.
 // Runs in Node with onnxruntime-web (WASM backend) and @napi-rs/canvas.
 
@@ -38,7 +38,7 @@ const t0 = Date.now();
 for (const item of index) {
   const golden = JSON.parse(fs.readFileSync(item.golden, "utf8"));
   const doc = await pdfjs.getDocument({ data: new Uint8Array(fs.readFileSync(item.pdf)), verbosity: 0, wasmUrl }).promise;
-  const got = await detector.detect(doc, { startConvention: item.convention, canvas: (w, h) => createCanvas(w, h) });
+  const got = await detector.detect(doc, { canvas: (w, h) => createCanvas(w, h) });
   const byPage = (list) => {
     const m = new Map();
     for (const e of list) (m.get(e.layout.page) ?? m.set(e.layout.page, []).get(e.layout.page)).push(e);

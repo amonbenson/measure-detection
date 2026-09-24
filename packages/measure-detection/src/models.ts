@@ -58,8 +58,7 @@ export function stripInput(img: Gray, strip: Strip): { data: Float32Array; h: nu
 const sigmoid = (v: number) => 1 / (1 + Math.exp(-v));
 
 export interface BoundarySignals {
-  startEdge: Float32Array; // start boundary, convention "system-edge"
-  startHeader: Float32Array; // start boundary, convention "after-header"
+  start: Float32Array; // start boundary (after clef, key and time signature)
   barline: Float32Array;
   offset: Float32Array;
 }
@@ -69,11 +68,13 @@ export async function boundarySignals(models: Models, img: Gray, strip: Strip): 
   const out = await models.measurenet.run({ input: new ort.Tensor("float32", data, [1, 2, h, w]) });
   const y = out.output.data as Float32Array;
   const cols = w / 2, c = Math.ceil(img.width / 2);
+  // Bundles before the single start convention have 4 channels (start at the system edge, start after
+  // the header, barline, offset); their after-header start channel is the one used now.
+  const k = out.output.dims[1] === 4 ? 1 : 0;
   return {
-    startEdge: Float32Array.from(y.subarray(0, c), sigmoid),
-    startHeader: Float32Array.from(y.subarray(cols, cols + c), sigmoid),
-    barline: Float32Array.from(y.subarray(2 * cols, 2 * cols + c), sigmoid),
-    offset: y.slice(3 * cols, 3 * cols + c),
+    start: Float32Array.from(y.subarray(k * cols, k * cols + c), sigmoid),
+    barline: Float32Array.from(y.subarray((k + 1) * cols, (k + 1) * cols + c), sigmoid),
+    offset: y.slice((k + 2) * cols, (k + 2) * cols + c),
   };
 }
 

@@ -56,12 +56,9 @@ def strip_input(img: np.ndarray, strip: Strip) -> np.ndarray:
 class MeasureNetDetector:
     """Boundary detector: (strip image, strip) -> [(u, confidence)] with the start boundary first."""
 
-    def __init__(self, ckpt: str, tau_b: float | None = None, convention: str = "system-edge"):
-        from .train_measurenet import CONVENTIONS
-
+    def __init__(self, ckpt: str, tau_b: float | None = None):
         self.ckpt = ckpt
         self.tau_b = DEFAULT_TAU_B if tau_b is None else tau_b
-        self.start_channel = CONVENTIONS.index(convention)
 
     def signals(self, img: np.ndarray, strip: Strip) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         model = _load_measurenet(self.ckpt)
@@ -69,7 +66,7 @@ class MeasureNetDetector:
             y = model(torch.from_numpy(strip_input(img, strip))[None].to(_device()))[0].float().cpu().numpy()
         c = math.ceil(img.shape[1] / 2)
         sig = lambda v: 1 / (1 + np.exp(-v))  # noqa: E731
-        return sig(y[self.start_channel, :c]), sig(y[2, :c]), y[3, :c]
+        return sig(y[0, :c]), sig(y[1, :c]), y[2, :c]
 
     def __call__(self, img: np.ndarray, strip: Strip) -> list[tuple[float, float]]:
         start, bar, off = self.signals(img, strip)

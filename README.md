@@ -37,11 +37,11 @@ const detector = await MeasureDetector.create({
 });
 // wasmUrl lets pdf.js decode JBIG2 and JPEG 2000 scans; serve node_modules/pdfjs-dist/wasm/ there.
 const pdf = await pdfjs.getDocument({ url, wasmUrl: "/pdfjs-wasm/" }).promise;
-const measures = await detector.detect(pdf, { startConvention: "system-edge" });
+const measures = await detector.detect(pdf);
 // [{ layout: { page, x, y, width, height }, value: "12", quad: [[x, y], ...], confidence, ... }]
 ```
 
-The model files are in `packages/measure-detection/models/` (copy them to your static assets; `manifest.json` records the dataset, split hashes, training commit and metrics of the bundle). Run `detect` in a Web Worker to keep the UI responsive. `startConvention` selects where the first measure of a system begins: at the system's opening line (`system-edge`, default) or after clef, key and time signature (`after-header`). Low `confidence` marks measures worth showing to the user for review.
+The model files are in `packages/measure-detection/models/` (copy them to your static assets; `manifest.json` records the dataset, split hashes, training commit and metrics of the bundle). Run `detect` in a Web Worker to keep the UI responsive. The first measure of a system starts after clef, key and time signature, in the space before the first note or rest. Low `confidence` marks measures worth showing to the user for review.
 
 ## Training and evaluation
 
@@ -67,7 +67,7 @@ uv run python -m mdet.audit                     # data audit and overlays -> run
 uv run python -m mdet.splits                    # dataset/meta.json; splits are frozen in dataset/splits/
 uv run python -m mdet.prepare                   # render and normalize pages
 uv run python -m mdet.targets                   # boundary targets
-uv run python -m mdet.splits                    # adds the start convention to meta.json
+uv run python -m mdet.splits                    # meta.json again; flags rows that start at the system edge
 uv run python -m mdet.splits --challenge        # rule-based challenge pages
 uv run python -m mdet.bootstrap                 # measure-number crops (round 0)
 uv run python -m mdet.train_labelocr            # label reader
@@ -89,7 +89,7 @@ npm run example -w measure-detection
 # open http://localhost:8080
 ```
 
-Open a book (a PDF with one or more songs), split it into documents (one per song), detect measures per document, correct boxes and values, and export each document to `dataset/documents/<id>/` (`score.pdf` with the document's pages, `measures.json`, `source.json` with show id and song number), adding its id to `train.txt` or `val.txt`. The state of a book is saved in `dataset/curation/<pdf fingerprint>.json` and restored when the same PDF is opened again. **Documents** opens any existing document for correction; Save writes it in place (an original document keeps its first measure list as `measures.orig.json`). The server never replaces the pages of an original document and never changes `test.txt`. New documents enter training after `mdet.prepare`, `mdet.targets` and `mdet.splits` (which adds their start convention to `meta.json`).
+Open a book (a PDF with one or more songs), split it into documents (one per song), detect measures per document, correct boxes and values, and export each document to `dataset/documents/<id>/` (`score.pdf` with the document's pages, `measures.json`, `source.json` with show id and song number), adding its id to `train.txt` or `val.txt`. The state of a book is saved in `dataset/curation/<pdf fingerprint>.json` and restored when the same PDF is opened again. **Documents** opens any existing document for correction; Save writes it in place (an original document keeps its first measure list as `measures.orig.json`). The server never replaces the pages of an original document and never changes `test.txt`. New documents enter training after `mdet.prepare`, `mdet.targets` and `mdet.splits` (which also flags rows whose start is not after the header).
 
 Box-detector baseline (RF-DETR-S, separate environment in `baselines/rfdetr/`):
 

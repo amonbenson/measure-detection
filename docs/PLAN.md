@@ -42,7 +42,7 @@ Source: 3 shows (one without documents), 55 documents, 4,969 JSON entries, about
 | Label grammar | `N`, `NL` (`23A`, `23a`), `L` (`A`, `B`, ...), each with optional pass | Grammar: optional integer + optional letter suffix. Charset: digits, letters, `-` for range labels |
 | Multi-measure rests | Show B: one printed rest with range label such as `12-15` is annotated as one equal-width box per measure | Detected interval is split into N equal measures after labelling. Virtual boundaries are ignored in barline training |
 | Vertical box extent is inconsistent | Show A: top to bottom staff line. Show B: sometimes includes lyrics, sometimes the staff only | Predictions span top to bottom staff line. System matching uses intersection over the smaller height |
-| Start boundary convention differs by show | Show A: system opening line, or the start-repeat barline. Show B: after clef and key signature | Learned by the boundary model; not hard-coded |
+| Start boundary convention differs by show | Show A: system opening line, or the start-repeat barline. Show B: after clef and key signature | Learned by the boundary model; not hard-coded. Since run 2 all documents use the start after the header (section 8) |
 | Tiling | 2 gaps above 1e-4 in 1,315 rows | Rows tile; gaps are logged |
 | Unlabeled pages | 7 pages, all "turn page" arrow pages | True negatives |
 | Unlabeled documents | Two show B documents have zero entries | Excluded from all splits |
@@ -131,6 +131,8 @@ Recorded as they happened; results in `docs/RESULTS.md`.
 | Near-duplicate boxes (IoU >= 0.8) are duplicates, not only identical boxes | Repeated passages annotated twice with slightly different coordinates |
 | Per-system scan shear estimated and removed in rectification | 13 % of show A barlines were tilted relative to the staff lines |
 | MeasureNet has two start channels, one per start convention; the convention is a runtime setting | The start convention varies per document and is not visible in the image |
+| Run 2: one start convention (after clef, key and time signature) for all documents; MeasureNet has one start channel again and the runtime has no convention setting | The existing data was converted to one convention; new documents come from the curation page |
+| Run 2: documents store only `show_id` and song number; `meta.json` uses the show id as `show` | Titles and show names are not needed for training |
 | Candidate text: components are rejected only if they intersect the staff region | Range labels printed close to the staff were lost |
 | A number followed by a single letter printed with a space (`30 E`) is merged into one reading | Candidate grouping split them |
 | Each measure of a split multi-measure rest gets its own label from the range as observation | The decoder otherwise left the suffix sequence after one step |

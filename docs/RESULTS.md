@@ -2,7 +2,62 @@
 
 All numbers were produced by `mdet.run` and `mdet.report` (outputs in `runs/eval/<name>/`). Metrics follow guideline section 7.2 and are computed in page coordinates with tolerances in staff spaces s. Terms are defined in `docs/PLAN.md`.
 
-Model bundle: MeasureNet 0.27 M parameters (1.1 MB ONNX), LabelOCR 0.77 M parameters (3.1 MB ONNX), decoder parameters 61 kB. Total download 4.2 MB (target: 10 MB or less).
+Model bundle: MeasureNet 0.27 M parameters (1.1 MB ONNX), LabelOCR 0.77 M parameters (3.1 MB ONNX), decoder parameters 101 kB. Total download 4.2 MB (target: 10 MB or less).
+
+The current bundle comes from run 2 (section 0). Sections 1 to 11 document run 1; its outputs are kept in `runs/v1/`.
+
+## 0. Run 2: one start convention, two new shows
+
+### Changes
+
+| Change | Detail |
+|---|---|
+| One start convention | Every document now starts the first measure of a system after clef, key and time signature (docs/CONVENTIONS.md). The 37 show A documents were converted by hand in the curation page; three show B documents (two train, one test) were pre-filled with the run 1 model's after-header start and then reviewed. `mdet.splits` checks every row; 4 rows remain flagged, all systems whose left end is not detected (continuation lines without a clef) |
+| MeasureNet | One start channel again (3 outputs: start, barline, offset); no convention setting in Python or the browser runtime. Same architecture and hyperparameters as run 1 (150 epochs, lr 1e-3, batch 16) |
+| Data | Two new shows from the curation page (43 documents, 2,107 measures). 96 labeled documents, 736 pages, 6,922 measures in 4 shows. Train 77, val 11, test 8 documents (test unchanged) |
+| Bootstrapping | The pass-1 window of the first measure of a system was widened from (-3, 8) s to (-12, 8) s: with the start after the header, its number lies at the opening line or under the clef, 2.5 to 10 s left of the start. Round 0 matched 81.5 % of show A numbers with the old window and 91.1 % with the new one (run 1: 92.9 %) |
+
+Not repeated (run 1 results stand): data audit, classical baseline, RF-DETR, leave-one-show-out, single against two start channels.
+
+### Training
+
+| Step | Run 1 | Run 2 |
+|---|---|---|
+| Bootstrapping round 0, all shows | 87.4 % | 86.5 % (show A 91.1, show B 82.2, new shows 84.3 and 83.2) |
+| Bootstrapping self-training round | 91.2 % | 94.1 % |
+| Random crops of the new shows inspected | | 48 of 48 correct |
+| LabelOCR round 1, val string accuracy | 96.6 % (1,132 crops) | 97.1 % (1,524 crops) |
+| MeasureNet strip-level val F1 (best epoch) | 99.0 % (epoch 34) | 99.1 % (epoch 14; 98.0 % at epoch 149, later epochs overfit slightly) |
+
+tau_b on val (full pipeline): 0.3 gives measure F1 96.57 %, 0.4 gives 98.45 %, 0.5 gives 98.38 %. tau_b stays 0.4.
+
+### Results
+
+| Metric | val | test | test, rest-tolerant |
+|---|---|---|---|
+| System precision / recall | 100 / 100 % | 100 / 100 % | 100 / 100 % |
+| Barline F1 at 1 s | 99.11 % | 95.32 % | 97.57 % |
+| Barline F1 at 0.5 s | 92.61 % | 87.36 % | 91.10 % |
+| Boundary error mean / p95 | 0.19 / 0.56 s | 0.21 / 0.58 s | |
+| Measure F1 | 98.45 % | 91.85 % | 94.60 % |
+| Page-exact rate | 92.22 % | 75.00 % | 75.00 % |
+| Conditional label accuracy | 98.77 % | 98.04 % | 97.59 % |
+| End-to-end label accuracy | 97.30 % | 90.59 % | 92.88 % |
+| Residual error at 5 % review | 2.43 % | 12.79 % | |
+
+By show (measure F1 / end-to-end label accuracy): val show A 99.07 / 97.03 %, show B 98.10 / 97.92 %, new show `w9enanc5vq2y7ag` 99.06 / 97.17 %, new show `7bfzys4o0qaghyb` 96.77 / 96.15 %. Test show A 95.60 / 94.99 % (run 1: 97.85 / 97.37 %), show B 88.03 / 86.10 % (run 1: 90.13 / 86.86 %). The new shows have no test documents (test is frozen).
+
+Test numbers are not directly comparable with run 1: the start boundaries of 7 of the 8 test documents changed, and a start after the header has no line to snap to. Per test document, run 2 is within 1 point of run 1 or better on `8dq33liwx27xleb`, `f8h10derj70hzdw` and `nmdyxt0rjxjxdkp` (471 measures). `jtmrafex42858ea` dropped from 87.98 to 83.50 %; its page 9 alone has 15 missed and 16 spurious boundaries inside multi-measure rests, as in run 1. The drop on show A comes from three small documents (70 measures together): `y06pppp8wchggg0` (74 %) has spurious boundaries on both lines of double barlines and start-repeat signs, which run 1 did not produce; `bx7ml3j5hjpjnqg` and `av3hfu081tymefw` have start boundaries just over 1 s from the annotation. Error categories on test: 55 spurious barlines, 32 missed barlines, 15 labels, 13 start edges (run 1: 39, 27, 15, 13).
+
+### Browser runtime
+
+Unit parity (`npm test`, test vectors regenerated for the new decoder parameters): all exact. Pipeline parity on 68 test pages (WASM in Node): 65 pages identical within 0.2 s; on 3 pages one boundary differs (0.22, 0.36 and 0.44 s, one of them a start boundary, whose peak is flat because no line marks it). Run 1: 74 of 76 pages, one boundary each. The runtime also accepts run 1 bundles (4 outputs) and then reads their after-header start channel.
+
+### Next steps
+
+1. Check how the new shows annotate double barlines and start-repeat signs (one boundary on the thick line, as in show A, or elsewhere). A different convention there would explain the doubled boundaries on `y06pppp8wchggg0`; validate any fix on val.
+2. Test documents for the new shows, as a separate frozen split, so that their test performance is measured.
+3. MeasureNet peaked at epoch 14 of 150; a shorter schedule or stronger augmentation is worth a val experiment.
 
 ## 1. Data
 

@@ -51,7 +51,6 @@ def strata(results: list[PageResult]) -> dict[str, dict[str, list[PageResult]]]:
         groups["source"][str(m.get("source"))].append(r)
         groups["number position"][str(m.get("number_position"))].append(r)
         groups["alphanumeric labels"][str(m.get("has_alphanumeric_labels"))].append(r)
-        groups["start convention"][str(m.get("start_convention"))].append(r)
         skew = abs(PageGeometry.load(r.doc_id, r.page).info["deskew_deg"])
         groups["skew"]["<1 deg" if skew < 1 else ("1-3 deg" if skew <= 3 else ">3 deg")].append(r)
     return groups

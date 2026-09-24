@@ -16,7 +16,7 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from .data import RUNS, load_document, read_meta, read_split
+from .data import RUNS, load_document, read_split
 from .evaluate import PageResult, PredSystem, evaluate_page, summarize
 from .pipeline import measures_from_boundaries, page_systems
 from .rectify import rectify
@@ -32,22 +32,19 @@ def predict_page(doc_id: str, page: int, detector) -> tuple[list[PredSystem], li
     return [ps.pred for ps in systems], systems, geo
 
 
-def make_detector(kind: str, ckpt: str | None, tau: float | None, convention: str = "system-edge"):
+def make_detector(kind: str, ckpt: str | None, tau: float | None):
     if kind == "classical":
         from .boundaries import classical_detector
 
         return classical_detector() if tau is None else classical_detector(tau)
     from .infer import MeasureNetDetector
 
-    return MeasureNetDetector(ckpt, tau_b=tau, convention=convention)
+    return MeasureNetDetector(ckpt, tau_b=tau)
 
 
 def run_document(args: tuple) -> list[tuple[PageResult, list[PredSystem]]]:
-    doc_id, kind, ckpt, tau, labels, convention = args
-    if convention == "document":
-        # The start convention is a user setting; evaluation uses the document's annotated convention.
-        convention = read_meta()[doc_id]["start_convention"]
-    detector = make_detector(kind, ckpt, tau, convention)
+    doc_id, kind, ckpt, tau, labels = args
+    detector = make_detector(kind, ckpt, tau)
     doc = load_document(doc_id)
     out = []
     per_page = []
@@ -86,9 +83,9 @@ def virtual_flags(geo, systems, rows) -> dict[int, list[bool]]:
     return out
 
 
-def evaluate_split(split: str, kind: str, ckpt: str | None = None, tau: float | None = None, labels: str | None = None, workers: int = 6, docs: list[str] | None = None, convention: str = "document"):
+def evaluate_split(split: str, kind: str, ckpt: str | None = None, tau: float | None = None, labels: str | None = None, workers: int = 6, docs: list[str] | None = None):
     docs = docs or read_split(split)
-    jobs = [(d, kind, ckpt, tau, labels, convention) for d in docs]
+    jobs = [(d, kind, ckpt, tau, labels) for d in docs]
     results: list[PageResult] = []
     tolerant: list[PageResult] = []
     preds = {}
@@ -112,13 +109,12 @@ def main() -> None:
     ap.add_argument("--labels", help="LabelOCR checkpoint; enables Stages 4 and 5")
     ap.add_argument("--split", default="val")
     ap.add_argument("--tau", type=float)
-    ap.add_argument("--convention", default="document", choices=["document", "system-edge", "after-header"], help="start convention: the document's annotated one, or fixed")
     ap.add_argument("--name")
     ap.add_argument("--docs", nargs="*", help="explicit documents instead of a split")
     ap.add_argument("--workers", type=int, default=6)
     args = ap.parse_args()
     name = args.name or f"{args.detector}_{args.split}"
-    summary, results, preds, tolerant = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, docs=args.docs, convention=args.convention)
+    summary, results, preds, tolerant = evaluate_split(args.split, args.detector, args.ckpt, args.tau, args.labels, args.workers, docs=args.docs)
     summary_tol = summarize(tolerant)
     out = RUNS / "eval" / name
     out.mkdir(parents=True, exist_ok=True)

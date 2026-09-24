@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader, Dataset, Sampler
 
 from .augment import crop_strip, geometric_strip, photometric
 from .boundaries import decode
-from .data import DERIVED, RUNS, read_meta, read_split
+from .data import DERIVED, RUNS, read_split
 from .evaluate import match_boundaries
 from .models import MeasureNet, count_parameters
 from .staves import S
@@ -31,19 +31,16 @@ SIGMA = 0.5 * S / STRIDE  # Gaussian sigma in output columns
 # Fixed training shapes (guideline 8.2 shape buckets): few distinct shapes keep GPU memory stable.
 HEIGHT_BUCKETS = (192, 320, 448, 576, 704, 832)
 TRAIN_WIDTH = 1216
-CONVENTIONS = ("system-edge", "after-header")  # start channel 0 and 1
-BARLINE, OFFSET = 2, 3  # output channels
+START, BARLINE, OFFSET = 0, 1, 2  # output channels
 
 
 def load_strips(doc_ids: list[str]) -> list[dict]:
-    meta = read_meta()
     out = []
     for d in doc_ids:
         for f in sorted((DERIVED / "strips" / d).glob("*.npz")):
             for s in load_samples(f):
                 s["doc_id"] = d
                 s["page"] = int(f.stem)
-                s["convention"] = meta[d]["start_convention"]
                 out.append(s)
     return out
 
@@ -59,23 +56,18 @@ def make_input(img: np.ndarray, bands: np.ndarray) -> np.ndarray:
     return x
 
 
-def make_targets(width: int, bounds: np.ndarray, virtual: np.ndarray, keep: np.ndarray, has_start: bool, convention: str):
-    """Heatmaps (3, C), validity mask (3, C), positive indices and offsets, C = ceil(width / STRIDE).
-
-    Only the start channel of the document's convention is trained; the other one is masked.
-    """
+def make_targets(width: int, bounds: np.ndarray, virtual: np.ndarray, keep: np.ndarray, has_start: bool):
+    """Heatmaps (2, C) for start and barline, validity mask (2, C), positive indices and offsets, C = ceil(width / STRIDE)."""
     c = math.ceil(width / STRIDE)
-    heat = np.zeros((3, c), np.float32)
-    valid = np.ones((3, c), bool)
-    start_ch = CONVENTIONS.index(convention)
-    valid[1 - start_ch] = False
+    heat = np.zeros((2, c), np.float32)
+    valid = np.ones((2, c), bool)
     cols = np.arange(c, dtype=np.float32)
     pos_idx, pos_off = [], []
     for k, u in enumerate(bounds):
         if not keep[k]:
             continue
         cu = u / STRIDE
-        ch = start_ch if (k == 0 and has_start) else BARLINE
+        ch = START if (k == 0 and has_start) else BARLINE
         if virtual[k]:
             valid[BARLINE] &= ~(np.abs(cols + 0.5 - cu) <= S / STRIDE)
             continue
@@ -126,7 +118,7 @@ class StripDataset(Dataset):
             other = self.strips[int(rng.integers(len(self.strips)))]["image"]
             img = photometric(img, rng, other)
         x = make_input(img, bands)
-        heat, valid, pidx, poff = make_targets(img.shape[1], bounds, virtual, keep, has_start, s["convention"])
+        heat, valid, pidx, poff = make_targets(img.shape[1], bounds, virtual, keep, has_start)
         return x, heat, valid, pidx, poff
 
 
@@ -166,8 +158,8 @@ def collate(items):
     c = wmax // STRIDE
     b = len(items)
     xs = torch.zeros(b, 2, hmax, wmax)
-    heat = torch.zeros(b, 3, c)
-    valid = torch.zeros(b, 3, c, dtype=torch.bool)
+    heat = torch.zeros(b, 2, c)
+    valid = torch.zeros(b, 2, c, dtype=torch.bool)
     pos_b, pos_i, pos_o = [], [], []
     for k, (x, h, vd, pidx, poff) in enumerate(items):
         xs[k, :, : x.shape[1], : x.shape[2]] = torch.from_numpy(x)
@@ -203,8 +195,7 @@ def evaluate_strips(model, strips: list[dict], device, tau: float = 0.5) -> dict
         xp[:, :h, :w] = x
         y = model(torch.from_numpy(xp)[None].to(device))[0].float().cpu().numpy()
         c = math.ceil(w / STRIDE)
-        sc = CONVENTIONS.index(s["convention"])
-        pr = decode(1 / (1 + np.exp(-y[sc, :c])), 1 / (1 + np.exp(-y[BARLINE, :c])), y[OFFSET, :c], STRIDE, tau)
+        pr = decode(1 / (1 + np.exp(-y[START, :c])), 1 / (1 + np.exp(-y[BARLINE, :c])), y[OFFSET, :c], STRIDE, tau)
         pu = [u for u, _ in pr]
         gb = np.asarray(s["boundaries"])[~np.asarray(s["virtual"], bool)]
         m = match_boundaries(pu, gb.tolist(), 1.0 * S)
@@ -263,7 +254,7 @@ def main() -> None:
             xs, heat, valid = xs.to(device, non_blocking=True), heat.to(device), valid.to(device)
             with torch.autocast("cuda", dtype=torch.float16):
                 y = model(xs)
-            loss = focal_loss(y[:, :3], heat, valid)
+            loss = focal_loss(y[:, :2], heat, valid)
             if len(pb):
                 off = y[pb.to(device), OFFSET, pi.to(device)].float()
                 loss = loss + F.l1_loss(off, po.to(device))

@@ -17,6 +17,7 @@ import onnxruntime as ort
 import torch
 
 from .data import RUNS
+from .infer import DEFAULT_TAU_B
 from .models import LabelOCR, MeasureNet
 
 
@@ -102,7 +103,7 @@ def manifest(mn_meta: dict, ocr_meta: dict) -> dict:
         },
         "measurenet": {k: v for k, v in mn_meta.items() if k in ("epoch", "val")},
         "labelocr": {k: v for k, v in ocr_meta.items() if k in ("epoch", "val", "charset")},
-        "tau_b": 0.4,
+        "tau_b": DEFAULT_TAU_B,
         "metrics": metrics,
     }
 

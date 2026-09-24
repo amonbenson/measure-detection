@@ -3,10 +3,10 @@
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import { DecoderParams } from "./labelling.js";
 import { loadModels, ModelSources, Models } from "./models.js";
-import { detectPage, labelDocument, Measure, PipelineOptions, StartConvention } from "./pipeline.js";
+import { detectPage, labelDocument, Measure, PipelineOptions } from "./pipeline.js";
 import { browserCanvas, CanvasFactory, pass1, preparePage } from "./render.js";
 
-export type { DecoderParams, Measure, ModelSources, StartConvention };
+export type { DecoderParams, Measure, ModelSources };
 export type { CanvasFactory } from "./render.js";
 export type ProgressStage = "scan" | "detect" | "label";
 
@@ -27,10 +27,8 @@ export interface DetectorConfig {
   providers?: string[];
 }
 
+/** The first measure of a system starts after clef, key and time signature (docs/CONVENTIONS.md). */
 export interface DetectOptions extends PipelineOptions {
-  /** "system-edge" (default): the first measure of a system starts at the system's opening line.
-   *  "after-header": it starts after clef, key and time signature. */
-  startConvention?: StartConvention;
   /** Canvas factory for pdf.js rendering. Default: OffscreenCanvas. */
   canvas?: CanvasFactory;
   /** Progress per stage: "scan" (staff space of every page), "detect" (measures per page),
