@@ -1,5 +1,7 @@
 # measure-detection
 
+![Detected measures and measure numbers on a piano-vocal score, shown in the curation page](docs/images/hero.png)
+
 Finds every measure on printed and scanned sheet-music pages (piano-conductor, piano-vocal and vocal scores) and reads its measure label (`12`, `23A`, `B`). The result is a list of measures with page, quadrilateral, axis-aligned box, label and confidence, in the same JSON schema as the training annotations.
 
 The repository contains:

@@ -1,5 +1,7 @@
 # measure-detection
 
+![Detected measures and measure numbers on a piano-vocal score, shown in the curation page](https://raw.githubusercontent.com/amonbenson/measure-detection/main/docs/images/hero.png)
+
 Finds every measure on printed and scanned sheet-music pages (piano-conductor, piano-vocal and vocal scores) in the browser and reads its measure label (`12`, `23A`, `B`). The result is a list of measures with page, quadrilateral, axis-aligned box, label and confidence.
 
 Classical image processing does most of the work; two small ONNX models (MeasureNet for boundaries, LabelOCR for measure numbers, about 4 MB together) make the decisions rules cannot make reliably. Design, training and measured results: [github.com/amonbenson/measure-detection](https://github.com/amonbenson/measure-detection).
