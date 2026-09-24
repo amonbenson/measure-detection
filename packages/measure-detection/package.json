@@ -2,6 +2,27 @@
   "name": "measure-detection",
   "version": "0.1.0",
   "description": "Client-side detection of measures and measure numbers in scanned and printed sheet music (PDF)",
+  "keywords": [
+    "sheet-music",
+    "omr",
+    "optical-music-recognition",
+    "measures",
+    "bar-numbers",
+    "pdf",
+    "onnx",
+    "browser"
+  ],
+  "author": "Amon Benson",
+  "license": "MIT",
+  "homepage": "https://github.com/amonbenson/measure-detection#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/amonbenson/measure-detection.git",
+    "directory": "packages/measure-detection"
+  },
+  "bugs": {
+    "url": "https://github.com/amonbenson/measure-detection/issues"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,24 +31,33 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./models/*": "./models/*"
+    "./worker.js": "./dist/worker.js",
+    "./models/*": "./models/*",
+    "./package.json": "./package.json"
   },
+  "sideEffects": [
+    "./dist/worker.js"
+  ],
   "files": [
     "dist",
     "models"
   ],
   "scripts": {
+    "clean": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node test/unit.mjs && node test/parity.mjs",
-    "example": "tsc -p tsconfig.json && node example/server.mjs"
+    "example": "tsc -p tsconfig.json && node example/server.mjs",
+    "prepack": "npm run clean && npm run build"
   },
   "dependencies": {
-    "onnxruntime-web": "^1.20.0",
-    "pdfjs-dist": "^6.3.289"
+    "onnxruntime-web": "^1.30.0"
+  },
+  "peerDependencies": {
+    "pdfjs-dist": "^6.0.0"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.9",
+    "pdfjs-dist": "^6.3.289",
     "typescript": "^5.6.0"
-  },
-  "license": "UNLICENSED"
+  }
 }

@@ -33,7 +33,7 @@ export interface DetectorConfig {
   /** Web Workers for the image processing. Default: CPU cores - 1, at most 4, fewer on devices with
    *  little memory. 0 processes pages on the calling thread (also the fallback when workers cannot start). */
   workers?: number;
-  /** Custom worker factory, for bundlers that need their own worker URL. It must load `measure-detection/dist/worker.js`. */
+  /** Custom worker factory, for bundlers that need their own worker URL. It must load `measure-detection/worker.js` (`dist/worker.js`). */
   createWorker?: () => Worker;
 }
 
