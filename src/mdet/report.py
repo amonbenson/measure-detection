@@ -46,10 +46,10 @@ def strata(results: list[PageResult]) -> dict[str, dict[str, list[PageResult]]]:
     groups: dict[str, dict[str, list[PageResult]]] = collections.defaultdict(lambda: collections.defaultdict(list))
     for r in results:
         m = meta[r.doc_id]
-        groups["show"][m["show"]].append(r)
-        groups["score type"][m["score_type"]].append(r)
-        groups["source"][m["source"]].append(r)
-        groups["number position"][m["number_position"]].append(r)
+        groups["show"][m.get("publisher", m["show"])].append(r)
+        groups["score type"][str(m.get("score_type"))].append(r)
+        groups["source"][str(m.get("source"))].append(r)
+        groups["number position"][str(m.get("number_position"))].append(r)
         groups["alphanumeric labels"][str(m.get("has_alphanumeric_labels"))].append(r)
         groups["start convention"][str(m.get("start_convention"))].append(r)
         skew = abs(PageGeometry.load(r.doc_id, r.page).info["deskew_deg"])

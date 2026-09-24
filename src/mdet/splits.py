@@ -15,12 +15,14 @@ import numpy as np
 
 from .data import DATASET, SPLITS, all_document_ids, load_document, read_split
 
-# Show-level metadata, established during the audit (docs/CONVENTIONS.md). Shows are named by
-# neutral keys; the real show names exist only in the gitignored dataset/documents/*/source.json.
+# Show-level metadata established during the audit (docs/CONVENTIONS.md), keyed by the show id in
+# source.json. Documents store no show names; `show` in meta.json is the show id. Shows added later
+# (curation page) have no audit metadata.
 SHOW_META = {
-    "show-a": {
+    # show A
+    "ufdze5y4yx1yror": {
         "score_type": "piano-conductor",
-        "publisher": "show-a",
+        "publisher": "show-a",  # neutral keys used in docs/RESULTS.md
         "source": "flatbed-scan",
         "scan_dpi": 600,
         "numbering_style": "every-measure",
@@ -29,7 +31,8 @@ SHOW_META = {
         "max_vocal_staves": 1,
         "multi_song": False,
     },
-    "show-b": {
+    # show B
+    "oyy8yysryp55587": {
         "score_type": "vocal",
         "publisher": "show-b",
         "source": "born-digital",
@@ -41,13 +44,6 @@ SHOW_META = {
         "multi_song": False,
     },
 }
-
-
-def show_keys() -> dict[str, str]:
-    """Real show name -> neutral key (show-a, show-b, ...), assigned in sorted order of the names of
-    shows that have labeled documents."""
-    names = sorted({json.loads((DATASET / "documents" / d / "source.json").read_text(encoding="utf-8"))["show"] for d in all_document_ids(labeled_only=True)})
-    return {n: f"show-{chr(ord('a') + i)}" for i, n in enumerate(names)}
 
 
 # Documents whose file source differs from the rest of their show.
@@ -72,16 +68,14 @@ def start_convention(doc_id: str) -> str | None:
 
 def build_meta() -> dict[str, dict]:
     meta = {}
-    keys = show_keys()
+    labeled_ids = set(all_document_ids(labeled_only=True))
     for doc_id in all_document_ids(labeled_only=False):
         src = json.loads((DATASET / "documents" / doc_id / "source.json").read_text(encoding="utf-8"))
-        show = keys.get(src["show"])
-        if show is None:  # a show without labeled documents
-            continue
-        m = dict(SHOW_META[show])
-        m.update({"show": show, "edition_group": show})
+        show = src["show_id"]
+        m = dict(SHOW_META.get(show, {}))
+        m.update({"show": show, "edition_group": show, "number": src.get("number", "")})
         m.update(DOC_OVERRIDES.get(doc_id, {}))
-        labeled = doc_id in set(all_document_ids(labeled_only=True))
+        labeled = doc_id in labeled_ids
         m["labeled"] = labeled
         if labeled:
             doc = load_document(doc_id)
@@ -148,12 +142,21 @@ def main() -> None:
     (DATASET / "meta.json").write_text(json.dumps(meta, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
     SPLITS.mkdir(parents=True, exist_ok=True)
     if (SPLITS / "test.txt").exists() and not args.force:
+        # New documents are added to train or val by the curation page, never here.
+        assigned = {d for name in ("train", "val", "test") for d in read_split(name)}
+        missing = sorted(d for d, m in meta.items() if m["labeled"] and d not in assigned)
+        no_conv = sorted(d for d, m in meta.items() if m["labeled"] and m.get("start_convention") is None)
+        print(f"meta.json: {len(meta)} documents, {len({m['show'] for m in meta.values()})} shows")
+        if missing:
+            print(f"{len(missing)} labeled documents are in no split: {' '.join(missing)}")
+        if no_conv:
+            print(f"{len(no_conv)} documents have no start convention yet (run mdet.prepare and mdet.targets first): {' '.join(no_conv)}")
         print("splits exist; test split is frozen (use --force to recreate)")
         return
     for name, ids in build_splits(meta).items():
         (SPLITS / f"{name}.txt").write_text("\n".join(ids) + "\n", newline="\n")
         n_meas = sum(meta[d]["num_measures"] for d in ids)
-        shows = {s: sum(meta[d]["show"] == s for d in ids) for s in SHOW_META}
+        shows = {s: sum(meta[d]["show"] == s for d in ids) for s in sorted({m["show"] for m in meta.values()})}
         print(f"{name}: {len(ids)} documents, {n_meas} measures, {shows}")
 
 

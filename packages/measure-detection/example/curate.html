@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Measure curation</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.4 system-ui, sans-serif; background: #f4f3ef; color: #1d1d1b; display: grid; grid-template-rows: auto 1fr; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #d6d3cb; background: #fbfaf7; }
+  select { font: inherit; }
+  progress { width: 200px; }
+  #status { color: #57534e; }
+  #saved { margin-left: auto; color: #57534e; font-size: 12px; }
+  input[type=text] { font: inherit; padding: 2px 6px; }
+  button { font: inherit; padding: 2px 10px; cursor: pointer; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; min-height: 0; }
+  aside { overflow: auto; border-right: 1px solid #d6d3cb; background: #fbfaf7; }
+  aside .tools { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px; border-bottom: 1px solid #e7e5e0; position: sticky; top: 0; background: #fbfaf7; }
+  .song { padding: 7px 10px; border-bottom: 1px solid #eeece7; cursor: pointer; }
+  .song:hover { background: #f1efe9; }
+  .song.active { background: #e3ecfd; }
+  .song.skip { color: #a8a29e; }
+  .song .sub { font-size: 12px; color: #78716c; }
+  .badge { display: inline-block; font-size: 11px; padding: 0 6px; border-radius: 8px; background: #e7e5e0; margin-left: 4px; }
+  .badge.ok { background: #dcfce7; color: #166534; }
+  .badge.warn { background: #fee2e2; color: #991b1b; }
+  .badge.run { background: #dbeafe; color: #1e40af; }
+  main { overflow: auto; min-height: 0; position: relative; }
+  .empty { padding: 32px; color: #57534e; max-width: 720px; }
+  .empty kbd, .help kbd { font: 12px ui-monospace, monospace; padding: 0 4px; border: 1px solid #d6d3cb; border-radius: 3px; background: #fff; }
+  /* Page overview: click a page to start a new song there. */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--thumb, 150px), 1fr)); gap: 10px; padding: 12px; }
+  /* Bottom border alternates per song so that song ranges are visible at a glance. */
+  .thumb { position: relative; background: #fff; box-shadow: 0 1px 3px #0003; cursor: pointer; border-top: 4px solid transparent; border-bottom: 4px solid #93c5fd; }
+  .thumb.alt { border-bottom-color: #fdba74; }
+  .thumb.start { border-top-color: #2563eb; }
+  .thumb.skip { opacity: .4; }
+  .thumb canvas { display: block; width: 100%; }
+  .thumb .ph { aspect-ratio: 1 / 1.414; }
+  .thumb .num { position: absolute; right: 4px; bottom: 4px; font-size: 11px; background: #fffd; padding: 0 4px; }
+  .thumb .title { position: absolute; left: 0; right: 0; top: 0; font-size: 11px; font-weight: 600; background: #2563ebe6; color: #fff; padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Document list */
+  table.docs { border-collapse: collapse; margin: 12px 16px; font-size: 13px; }
+  table.docs th, table.docs td { text-align: left; padding: 4px 12px; border-bottom: 1px solid #e7e5e0; }
+  table.docs th { position: sticky; top: 49px; background: #f4f3ef; }
+  table.docs tbody tr { cursor: pointer; }
+  table.docs tbody tr:hover { background: #e3ecfd; }
+  code { font: 12px ui-monospace, monospace; }
+  /* Song editor */
+  .bar { position: sticky; top: 0; z-index: 2; background: #fbfaf7ee; backdrop-filter: blur(3px); border-bottom: 1px solid #d6d3cb; padding: 8px 16px; display: flex; flex-direction: column; gap: 6px; }
+  .bar .row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+  .bar .sel { min-height: 28px; }
+  #value { width: 80px; font-weight: 600; }
+  .help { font-size: 12px; color: #57534e; }
+  .pagebox { max-width: 1000px; margin: 12px auto 20px; }
+  .pagehead { display: flex; gap: 10px; align-items: center; font-size: 12px; color: #57534e; margin-bottom: 4px; }
+  .page { position: relative; background: #fff; box-shadow: 0 1px 4px #0003; }
+  .page canvas { display: block; width: 100%; }
+  .page .ph { aspect-ratio: 1 / 1.414; }
+  .page svg { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; user-select: none; }
+  rect.m { fill: #2563eb12; stroke: #2563eb; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  rect.m.low { fill: #dc26261a; stroke: #dc2626; }
+  rect.m.edited { fill: #15803d12; stroke: #15803d; }
+  rect.m.pending { fill: #6b728014; stroke: #6b7280; stroke-dasharray: 4 3; }
+  rect.m.selected { stroke: #ea580c; stroke-width: 3; fill: #ea580c1a; }
+  rect.draft { fill: #ea580c14; stroke: #ea580c; stroke-dasharray: 5 3; stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+  text { font: 600 11px system-ui, sans-serif; fill: #1d4ed8; paint-order: stroke; stroke: #fff; stroke-width: 3px; pointer-events: none; }
+  text.low { fill: #b91c1c; }
+  text.edited { fill: #166534; }
+  text.selected { fill: #c2410c; }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; grid-template-rows: 200px 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid #d6d3cb; }
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+  "onnxruntime-web": "/node_modules/onnxruntime-web/dist/ort.all.min.mjs",
+  "pdfjs-dist": "/node_modules/pdfjs-dist/build/pdf.min.mjs"
+} }
+</script>
+</head>
+<body>
+<header>
+  <strong>Measure curation</strong>
+  <label>Open book <input type="file" id="file" accept="application/pdf"></label>
+  <button id="documents">Documents</button>
+  <label>Show <select id="show" disabled></select></label>
+  <progress id="bar" max="1" value="0"></progress>
+  <span id="status">Choose a PDF.</span>
+  <span id="saved"></span>
+</header>
+<div class="layout">
+  <aside>
+    <div class="tools">
+      <button id="overview" disabled>Page overview</button>
+      <button id="detectAll" disabled>Detect all songs without measures</button>
+    </div>
+    <div id="songs"></div>
+  </aside>
+  <main id="main">
+    <div class="empty">
+      <p>Open a book (a PDF with one or more songs) or an existing document. The state of a book is saved on the server (<code>dataset/curation/</code>) and restored when the same PDF is opened again. <b>Documents</b> lists every document in <code>dataset/documents</code>; open one to correct it and save it in place.</p>
+      <p>Documents store only the song number and the show id. Titles and show names are never stored; choose the show in the header (a new book starts as a new show).</p>
+      <p><b>1. Split into songs.</b> In the page overview, click a page to start a new song there; click the first page of a song to merge it into the previous one. Mark pages that are not songs (index, front matter) as skipped.</p>
+      <p><b>2. Detect and curate.</b> Open a song, run the detector, then correct the boxes and values. Red boxes have low confidence, green boxes were edited or confirmed by you.</p>
+      <p><b>3. Export.</b> Writes <code>dataset/documents/&lt;id&gt;/</code> (<code>score.pdf</code> with the song's pages, <code>measures.json</code>, <code>source.json</code> with show id and song number) and adds the id to <code>train.txt</code> or <code>val.txt</code>.</p>
+    </div>
+  </main>
+</div>
+<script type="module" src="curate.js"></script>
+</body>
+</html>

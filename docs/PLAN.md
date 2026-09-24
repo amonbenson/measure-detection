@@ -9,7 +9,7 @@ Each term has exactly one meaning in this repository.
 | Term | Meaning |
 |---|---|
 | document | One song: one PDF plus its measure list. Identified by the Pocketbase `songs` record id. |
-| show | The musical a document belongs to. All documents of a show share one engraving source. Shows are named by neutral keys (show A = `show-a`, show B = `show-b`); real names exist only in the gitignored data. |
+| show | The musical a document belongs to. All documents of a show share one engraving source. Identified by `show_id` in `source.json`; documents store no show names. The two audited shows are called show A and show B in these docs. |
 | page | One displayed PDF page (after `/Rotate` and CropBox). |
 | staff | Five horizontal staff lines. |
 | system | A group of staves that is read simultaneously, connected by an opening line on the left. |

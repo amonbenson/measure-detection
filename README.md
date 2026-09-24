@@ -57,7 +57,7 @@ Data layout (not in the repository): one folder per document.
 ```
 dataset/documents/<doc_id>/score.pdf       the score
 dataset/documents/<doc_id>/measures.json   [{ "beats", "layout": {page, x, y, width, height}, "value" }]
-dataset/documents/<doc_id>/source.json     { "show", "number", "title" }
+dataset/documents/<doc_id>/source.json     { "show_id", "number" }  (no titles or show names)
 ```
 
 Pipeline:
@@ -81,13 +81,15 @@ uv run python -m mdet.parity                    # golden outputs for the browser
 npm test -w measure-detection                   # build, parity test (Node, WASM)
 ```
 
-Example (upload a PDF in the browser, see progress, measures drawn over the pages; WebGPU with WASM fallback):
+Curation page (the package example: detection in the browser, WebGPU with WASM fallback, and a tool for new training data):
 
 ```
 npm install
 npm run example -w measure-detection
 # open http://localhost:8080
 ```
+
+Open a book (a PDF with one or more songs), split it into documents (one per song), detect measures per document, correct boxes and values, and export each document to `dataset/documents/<id>/` (`score.pdf` with the document's pages, `measures.json`, `source.json` with show id and song number), adding its id to `train.txt` or `val.txt`. The state of a book is saved in `dataset/curation/<pdf fingerprint>.json` and restored when the same PDF is opened again. **Documents** opens any existing document for correction; Save writes it in place (an original document keeps its first measure list as `measures.orig.json`). The server never replaces the pages of an original document and never changes `test.txt`. New documents enter training after `mdet.prepare`, `mdet.targets` and `mdet.splits` (which adds their start convention to `meta.json`).
 
 Box-detector baseline (RF-DETR-S, separate environment in `baselines/rfdetr/`):
 
